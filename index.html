@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 <script>
@@ -15,7 +16,9 @@ const firebaseConfig = {
   appId: "1:653808647521:web:b3734d1d221284cd681920"
 };
 
-firebase.initializeApp(firebaseConfig);
+try {
+  firebase.initializeApp(firebaseConfig);
+} catch(e) {}
 const db = firebase.firestore();
 
 const deviceId = localStorage.getItem('wh_device_id') || (function(){
@@ -175,6 +178,36 @@ input[type=file]{display:none}
 .badge-known{background:#e8f8f0;color:#27ae60;border-radius:4px;padding:2px 7px;font-size:11px}
 .badge-unk{background:#fdf0f0;color:var(--accent);border-radius:4px;padding:2px 7px;font-size:11px}
 .empty-filter{text-align:center;padding:40px;color:var(--muted);font-size:14px}
+
+/* ── スマホ対応 ─────────────────────────────────────── */
+@media (max-width: 600px) {
+  #app{padding:12px 10px}
+  .header{flex-direction:column;align-items:flex-start;gap:8px}
+  .header-btns{flex-wrap:wrap;gap:6px}
+  .btn{padding:8px 12px;font-size:12px}
+  .logo{font-size:20px}
+  .stats-bar{gap:6px}
+  .stat{padding:6px 8px;min-width:50px}
+  .stat-n{font-size:16px}
+  .stat-l{font-size:9px}
+  .tabs{font-size:12px}
+  .tab{padding:8px 0;font-size:12px}
+  .card-word{font-size:22px}
+  .card-phonetic{font-size:20px}
+  .nav-side-btn{width:50px;min-height:70px;font-size:13px}
+  .speak-btn{padding:8px 14px;font-size:13px}
+  .voice-bar{gap:8px;padding:10px 12px}
+  .voice-bar select{font-size:11px;max-width:120px}
+  .filter-bar{gap:6px}
+  .filter-btn{padding:6px 10px;font-size:12px}
+  .list-table th,.list-table td{padding:6px 8px;font-size:12px}
+  .typing-q{font-size:20px}
+  .typing-input{font-size:15px}
+  .slide-jp{font-size:20px}
+  .slide-en{font-size:22px}
+  .search-input{font-size:13px}
+  #search-input{font-size:13px}
+}
 select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;background:var(--paper);font-family:'BIZ UDGothic',sans-serif;font-size:13px;color:var(--ink)}
 .list-speak-btn{padding:4px 10px;border-radius:14px;border:1px solid var(--speak);background:var(--card);color:var(--speak);font-size:12px;cursor:pointer;font-family:'BIZ UDGothic',sans-serif}
 .list-speak-btn:hover{background:var(--speak);color:#fff}
@@ -182,7 +215,7 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
 
 <div id="app">
   <div class="header">
-    <div class="logo">Wordholic<span>単語帳学習アプリ</span></div>
+    <div class="logo">Lingo Lab<span>英語学習アプリ</span></div>
     <div id="file-name-display" style="font-size:18px;color:var(--muted);letter-spacing:1px;margin-top:4px;font-family:'BIZ UDGothic',sans-serif;font-weight:700"></div>
     <div class="header-btns">
       <label class="btn" style="cursor:pointer" for="xl">📂 Excel読み込む</label>
@@ -232,6 +265,8 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
       <button class="filter-btn active-all" id="f-all" onclick="setFilter('all')">📚 全て <span class="filter-count" id="fc-all"></span></button>
       <button class="filter-btn" id="f-pron" onclick="setFilter('pron')">🎤 発音練習 <span class="filter-count" id="fc-pron"></span></button>
       <button class="filter-btn" id="f-mem" onclick="setFilter('mem')">💡 記憶 <span class="filter-count" id="fc-mem"></span></button>
+      <button class="filter-btn" id="f-today" onclick="setFilter('today')">📅 今日 <span class="filter-count" id="fc-today"></span></button>
+      <button class="filter-btn" id="f-yesterday" onclick="setFilter('yesterday')">📅 昨日 <span class="filter-count" id="fc-yesterday"></span></button>
     </div>
 
     <div class="tabs">
@@ -245,6 +280,33 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
     <div id="mode-type" style="display:none"></div>
     <div id="mode-slide" style="display:none"><div id="slide-card-wrap"></div><div class="slide-controls"><button class="btn" id="slide-stop-btn" style="display:none" onclick="stopSlide()">⏹ 停止</button><button class="btn btn-primary" id="slide-start-btn" onclick="startSlide()">▶ 自動再生</button><span style="font-size:13px;color:var(--muted);margin-left:8px">間隔：</span><select id="speed-sel" onchange="slideSpeed=+this.value; if(slideTimer){clearTimeout(slideTimer);slideTimer=null;}"><option value="2">速い(2秒)</option><option value="3" selected>普通(3秒)</option><option value="5">ゆっくり(5秒)</option><option value="8">超ゆっくり(8秒)</option></select><button class="btn" style="margin-left:8px" onclick="navigate(-1)">←</button><button class="btn" onclick="navigate(1)">→</button></div></div>
     <div id="mode-list" style="display:none"></div>
+  </div>
+</div>
+
+<!-- カード編集モーダル（静的HTML） -->
+<div id="wh-editcard-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:10000;align-items:center;justify-content:center">
+  <div style="background:var(--card);border-radius:14px;padding:28px;max-width:400px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
+    <div style="font-size:16px;font-weight:700;margin-bottom:20px;color:var(--ink)">✏️ カードを編集</div>
+    <div style="margin-bottom:12px">
+      <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">日本語</label>
+      <textarea id="edit-jp" rows="2" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;font-family:'BIZ UDGothic',sans-serif;background:var(--paper);color:var(--ink);outline:none;box-sizing:border-box;resize:vertical"></textarea>
+    </div>
+    <div style="margin-bottom:12px">
+      <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">English</label>
+      <textarea id="edit-en" rows="2" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;font-family:'BIZ UDGothic',sans-serif;background:var(--paper);color:var(--ink);outline:none;box-sizing:border-box;resize:vertical"></textarea>
+    </div>
+    <div style="margin-bottom:12px">
+      <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">発音記号 (任意)</label>
+      <input id="edit-ph" type="text" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;font-family:'BIZ UDGothic',sans-serif;background:var(--paper);color:var(--ink);outline:none;box-sizing:border-box">
+    </div>
+    <div style="margin-bottom:20px">
+      <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">補足説明 (任意)</label>
+      <textarea id="edit-note" rows="3" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:'BIZ UDGothic',sans-serif;background:var(--paper);color:var(--ink);outline:none;box-sizing:border-box;resize:vertical"></textarea>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button onclick="document.getElementById('wh-editcard-modal').style.display='none'" style="flex:1;padding:10px;border-radius:8px;border:1.5px solid var(--border);background:var(--paper);cursor:pointer;font-family:'BIZ UDGothic',sans-serif">キャンセル</button>
+      <button onclick="doEditCard()" style="flex:1;padding:10px;border-radius:8px;border:none;background:var(--accent2);color:#fff;cursor:pointer;font-family:'BIZ UDGothic',sans-serif;font-weight:600">保存</button>
+    </div>
   </div>
 </div>
 
@@ -273,10 +335,19 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
-let words=[], pronBM=new Set(), memBM=new Set(), studyCount={}, searchQuery='';
+let words=[], pronBM=new Set(), memBM=new Set(), studyCount={}, studyDates={}, searchQuery='';
 let idxFlash=0, idxType=0, idxSlide=0;
-function getIdx(){ return mode==='flash'?idxFlash:mode==='type'?idxType:idxSlide; }
-function setIdx(v){ if(mode==='flash')idxFlash=v;else if(mode==='type')idxType=v;else idxSlide=v; }
+let idxByFilter={}; // フィルター別idx
+function getIdxKey(){ return mode+'_'+filter; }
+function getIdx(){
+  const k=getIdxKey();
+  if(idxByFilter[k]!==undefined) return idxByFilter[k];
+  return mode==='flash'?idxFlash:mode==='type'?idxType:idxSlide;
+}
+function setIdx(v){
+  idxByFilter[getIdxKey()]=v;
+  if(mode==='flash')idxFlash=v;else if(mode==='type')idxType=v;else idxSlide=v;
+}
 Object.defineProperty(window,'idx',{get:()=>getIdx(),set:(v)=>setIdx(v)});
 // モード別進捗
 let knownFlash=new Set(), knownType=new Set(), knownSlide=new Set();
@@ -311,13 +382,14 @@ async function fetchPhonetic(word){
 function saveProgress(){
   if(!_dataKey)return;
   const progressData = {
-    idx:getIdx(), idxFlash, idxType, idxSlide, filter, mode,
+    idx:getIdx(), idxFlash, idxType, idxSlide, idxByFilter, filter, mode,
     knownFlash:[...knownFlash],
     knownType:[...knownType],
     knownSlide:[...knownSlide],
     pronBM:[...pronBM],
     memBM:[...memBM],
     studyCount,
+    studyDates,
     updatedAt: Date.now()
   };
   try{
@@ -340,6 +412,7 @@ function restoreProgress(key){
     idxFlash=d.idxFlash||d.idx||0;
     idxType=d.idxType||0;
     idxSlide=d.idxSlide||0;
+    idxByFilter=d.idxByFilter||{};
     filter=d.filter||'all';
     mode=d.mode||'flash';
     knownFlash=new Set(d.knownFlash||d.known||[]);
@@ -348,6 +421,7 @@ function restoreProgress(key){
     pronBM=new Set(d.pronBM||[]);
     memBM=new Set(d.memBM||[]);
     studyCount=d.studyCount||{};
+    studyDates=d.studyDates||{};
     return true;
   }catch(e){return false;}
 }
@@ -425,7 +499,7 @@ function clearProgress(){
   localStorage.removeItem('wh_words_'+_dataKey);
   localStorage.removeItem('wh_dispName_'+_dataKey);
   localStorage.removeItem('wh_lastKey');
-  idxFlash=0;idxType=0;idxSlide=0;knownFlash=new Set();knownType=new Set();knownSlide=new Set();pronBM=new Set();memBM=new Set();studyCount={};filter='all';mode='flash';
+  idxFlash=0;idxType=0;idxSlide=0;idxByFilter={};knownFlash=new Set();knownType=new Set();knownSlide=new Set();pronBM=new Set();memBM=new Set();studyCount={};studyDates={};filter='all';mode='flash';
   setFilter('all');setMode('flash');
   showToast('進捗をリセットしました');
 }
@@ -563,6 +637,8 @@ function speakBtnHtml(text){
 }
 
 function autoSpeak(){
+  // スマホ（タッチデバイス）では自動読み上げしない
+  if('ontouchstart' in window) return;
   if(document.getElementById('auto-speak')?.checked) speakCurrent();
 }
 
@@ -584,12 +660,13 @@ function parseCSV(text,key,fname){
   words=text.split(/\r?\n/).filter(l=>l.trim()).map(l=>{
     const p=parseCSVLine(l);
     const {en,ph}=parseEnPh(p[1]);
-    return {jp:(p[0]||'').trim(), en, ph};
+    const note=(p[2]||'').trim().replace(/\\n/g,'\n');
+    return {jp:(p[0]||'').trim(), en, ph, note};
   }).filter(w=>w.jp&&w.en);
   _dataKey=key;
   document.getElementById('file-name-display').textContent='📄 '+fname;
   const restored=restoreProgress(key);
-  if(!restored){idxFlash=0;idxType=0;idxSlide=0;knownFlash=new Set();knownType=new Set();knownSlide=new Set();pronBM=new Set();memBM=new Set();filter='all';}
+  if(!restored){idxFlash=0;idxType=0;idxSlide=0;idxByFilter={};knownFlash=new Set();knownType=new Set();knownSlide=new Set();pronBM=new Set();memBM=new Set();studyDates={};filter='all';}
   init(restored);
 }
 
@@ -610,11 +687,11 @@ const DEMO=[
 ];
 
 function loadDemo(){
-  words=DEMO.map(([j,e])=>({jp:j,en:e,ph:''}));
+  words=DEMO.map(([j,e])=>({jp:j,en:e,ph:'',note:''}));
   _dataKey='demo';
   document.getElementById('file-name-display').textContent='📄 サンプルデータ';
   const restored=restoreProgress('demo');
-  if(!restored){idxFlash=0;idxType=0;idxSlide=0;knownFlash=new Set();knownType=new Set();knownSlide=new Set();pronBM=new Set();memBM=new Set();filter='all';}
+  if(!restored){idxFlash=0;idxType=0;idxSlide=0;idxByFilter={};knownFlash=new Set();knownType=new Set();knownSlide=new Set();pronBM=new Set();memBM=new Set();studyDates={};filter='all';}
   init(restored);
 }
 
@@ -647,11 +724,12 @@ function loadFile(input){
       words=XLSX.utils.sheet_to_json(ws,{header:1,defval:''})
         .filter(r=>r[0]&&r[1]).map(r=>{
           const {en,ph}=parseEnPh(r[1]);
-          return {jp:String(r[0]).trim(), en, ph};
+          const note=String(r[2]||'').trim();
+          return {jp:String(r[0]).trim(), en, ph, note};
         });
       _dataKey=key;
       const restored=restoreProgress(key);
-      if(!restored){idxFlash=0;idxType=0;idxSlide=0;knownFlash=new Set();knownType=new Set();knownSlide=new Set();pronBM=new Set();memBM=new Set();filter='all';}
+      if(!restored){idxFlash=0;idxType=0;idxSlide=0;idxByFilter={};knownFlash=new Set();knownType=new Set();knownSlide=new Set();pronBM=new Set();memBM=new Set();studyDates={};filter='all';}
       init(restored);
     };
     reader.readAsArrayBuffer(f);
@@ -662,6 +740,17 @@ function getFiltered(){
   let base;
   if(filter==='pron') base=words.map((w,i)=>({...w,orig:i})).filter(w=>pronBM.has(w.orig));
   else if(filter==='mem') base=words.map((w,i)=>({...w,orig:i})).filter(w=>memBM.has(w.orig));
+  else if(filter==='today'){
+    const today=getStudyDate();
+    base=words.map((w,i)=>({...w,orig:i})).filter(w=>(studyDates[w.orig]||[]).includes(today));
+  }
+  else if(filter==='yesterday'){
+    const d=new Date();
+    if(d.getHours()<2) d.setDate(d.getDate()-1);
+    d.setDate(d.getDate()-1);
+    const yesterday=d.toISOString().slice(0,10);
+    base=words.map((w,i)=>({...w,orig:i})).filter(w=>(studyDates[w.orig]||[]).includes(yesterday));
+  }
   else base=words.map((w,i)=>({...w,orig:i}));
   if(searchQuery){
     const q=searchQuery.toLowerCase();
@@ -699,13 +788,20 @@ function updateStats(){
   document.getElementById('fc-all').textContent='('+words.length+')';
   document.getElementById('fc-pron').textContent='('+pronBM.size+')';
   document.getElementById('fc-mem').textContent='('+memBM.size+')';
+  const todayKey=getStudyDate();
+  const d2=new Date(); if(d2.getHours()<2) d2.setDate(d2.getDate()-1); d2.setDate(d2.getDate()-1);
+  const yesterdayKey=d2.toISOString().slice(0,10);
+  const todayCount=words.filter((_,i)=>(studyDates[i]||[]).includes(todayKey)).length;
+  const yestCount=words.filter((_,i)=>(studyDates[i]||[]).includes(yesterdayKey)).length;
+  const fcToday=document.getElementById('fc-today'); if(fcToday) fcToday.textContent='('+todayCount+')';
+  const fcYest=document.getElementById('fc-yesterday'); if(fcYest) fcYest.textContent='('+yestCount+')';
 }
 
 function setFilter(f,skipMode){
   filter=f;
-  if(!skipMode) idx=0; // 手動でフィルター変更時のみリセット
-  ['all','pron','mem'].forEach(x=>{
-    document.getElementById('f-'+x).className='filter-btn'+(x===f?' active-'+x:'');
+  if(!skipMode && mode!=='flash') idx=0; // フラッシュ以外はリセット
+  ['all','pron','mem','today','yesterday'].forEach(x=>{
+    const el=document.getElementById('f-'+x); if(el) el.className='filter-btn'+(x===f?' active-all':'');
   });
   updateStats();
   if(!skipMode)setMode(mode);
@@ -741,6 +837,7 @@ function bmRowHtml(oi){
       ${sc>0?`<button onclick="event.stopPropagation();studyCount[${oi}]=Math.max(0,(studyCount[${oi}]||0)-1);saveProgress();renderFlash()" style="padding:2px 8px;border-radius:10px;border:1px solid var(--border);background:var(--paper);font-size:11px;cursor:pointer">-1</button>`:''}
       ${sc>0?`<button onclick="event.stopPropagation();if(confirm('このカードの学習回数をリセットしますか？')){studyCount[${oi}]=0;saveProgress();renderFlash()}" style="padding:2px 8px;border-radius:10px;border:1px solid var(--border);background:var(--paper);font-size:11px;cursor:pointer">リセット</button>`:''}
     </div>
+    <button onclick="event.stopPropagation();showEditCardByOrig(${oi})" style="padding:6px 16px;border-radius:20px;border:1.5px solid var(--accent2);background:var(--card);color:var(--accent2);font-size:13px;cursor:pointer;font-family:'BIZ UDGothic',sans-serif">✏️ カードを編集</button>
   </div>`;
 }
 
@@ -771,16 +868,17 @@ function renderFlash(){
           <div class="card-face">
             ${bmDotsHtml(oi)}
             <div class="card-label">日本語</div>
-            <div class="card-word">${w.jp}</div>
+            <div class="card-word">${w.jp.replace(/\n/g,'<br>')}</div>
             <div class="card-hint">クリックしてめくる</div>
           </div>
           <div class="card-face card-back">
             ${bmDotsHtml(oi)}
             <div class="card-label">English</div>
             <div style="display:flex;flex-direction:column;align-items:center;gap:0">
-              <div class="card-word" style="font-family:'BIZ UDGothic',sans-serif">${w.en}</div>
+              <div class="card-word" style="font-family:'BIZ UDGothic',sans-serif">${w.en.replace(/\n/g,'<br>')}</div>
               <div class="card-phonetic">${w.ph||''}</div>
             </div>
+            ${w.note?`<div style="font-size:13px;color:var(--muted);margin-top:10px;text-align:center;padding:0 10px;line-height:1.6">${w.note.replace(/\n/g,'<br>')}</div>`:''}
             <div class="card-speak" onclick="event.stopPropagation()">${speakBtnHtml(w.en)}</div>
           </div>
         </div>
@@ -884,7 +982,14 @@ function markKnown(v){
   const filt=getFiltered();
   if(!filt.length)return;
   const oi=filt[Math.min(idx,filt.length-1)].orig;
-  if(v){getKnown().add(oi);recordStudy();studyCount[oi]=(studyCount[oi]||0)+1;}else getKnown().delete(oi);
+  if(v){
+    getKnown().add(oi);
+    recordStudy();
+    studyCount[oi]=(studyCount[oi]||0)+1;
+    // 学習日付を記録
+    if(!studyDates[oi]) studyDates[oi]=[];
+    studyDates[oi].push(getStudyDate());
+  } else getKnown().delete(oi);
   updateStats();
   if(idx<filt.length-1)navigate(1);else renderFlash();
   saveProgress();
@@ -899,7 +1004,7 @@ function renderType(){
     ${bmRowHtml(oi)}
     <div class="typing-area">
       <div class="card-label" style="margin-bottom:8px">この日本語を英語で入力</div>
-      <div class="typing-q">${w.jp}</div>
+      <div class="typing-q">${w.jp.replace(/\n/g,'<br>')}</div>
       <input class="typing-input" id="t-input" placeholder="英語を入力…" autocomplete="off" onkeydown="typeKey(event)">
       <div class="typing-ans" id="t-ans"></div>
       <div style="margin-top:16px">${speakBtnHtml(w.en)}</div>
@@ -944,8 +1049,8 @@ function renderSlide(){
     ${bmRowHtml(oi)}
     <div class="slide-card">
       ${bmDotsHtml(oi)}
-      <div class="slide-jp">${w.jp}</div>
-      <div class="slide-en">${w.en}</div>
+      <div class="slide-jp">${w.jp.replace(/\n/g,'<br>')}</div>
+      <div class="slide-en">${w.en.replace(/\n/g,"<br>")}</div>
       <div class="slide-speak">${speakBtnHtml(w.en)}</div>
     </div>
     <div style="text-align:center;font-size:16px;font-weight:600;color:var(--accent2);margin-top:10px;cursor:pointer;padding:8px;border-radius:8px;border:1.5px solid var(--accent2)" onclick="jumpToCard()" title="番号を入力してジャンプ">${Math.min(idx,filt.length-1)+1} / ${filt.length} ✈</div>
@@ -1028,6 +1133,57 @@ function doJump(){
   saveProgress();
 }
 
+function showEditCardByOrig(oi){
+  const w=words[oi];
+  if(!w) return;
+  var jp=document.getElementById('edit-jp');
+  var en=document.getElementById('edit-en');
+  var ph=document.getElementById('edit-ph');
+  var note=document.getElementById('edit-note');
+  if(jp) jp.value=w.jp||'';
+  if(en) en.value=w.en||'';
+  if(ph) ph.value=w.ph||'';
+  if(note) note.value=w.note||'';
+  document.getElementById('wh-editcard-modal')._editOrig=oi;
+  document.getElementById('wh-editcard-modal').style.display='flex';
+}
+
+function showEditCard(){
+  const filt=getFiltered();
+  if(!filt.length) return;
+  const w=filt[Math.min(getIdx(),filt.length-1)];
+  var jp=document.getElementById('edit-jp');
+  var en=document.getElementById('edit-en');
+  var ph=document.getElementById('edit-ph');
+  var note=document.getElementById('edit-note');
+  if(jp) jp.value=w.jp||'';
+  if(en) en.value=w.en||'';
+  if(ph) ph.value=w.ph||'';
+  if(note) note.value=w.note||'';
+  document.getElementById('wh-editcard-modal')._editOrig=w.orig;
+  document.getElementById('wh-editcard-modal').style.display='flex';
+}
+
+function doEditCard(){
+  const modal=document.getElementById('wh-editcard-modal');
+  const oi=modal._editOrig;
+  if(oi===undefined) return;
+  const jp=(document.getElementById('edit-jp')?.value||'').trim();
+  const en=(document.getElementById('edit-en')?.value||'').trim();
+  const ph=(document.getElementById('edit-ph')?.value||'').trim();
+  const note=(document.getElementById('edit-note')?.value||'').trim();
+  if(!jp||!en){alert('日本語と英語は必須です');return;}
+  modal.style.display='none';
+  words[oi]={...words[oi], jp, en, ph, note};
+  saveProgress();
+  updateStats();
+  if(mode==='flash')renderFlash();
+  else if(mode==='type')renderType();
+  else if(mode==='slide')renderSlide();
+  else if(mode==='list')renderList();
+  showToast('カードを更新しました');
+}
+
 function showAddCard(){
   // 入力欄をクリア
   ['add-jp','add-en','add-ph'].forEach(function(id){
@@ -1089,10 +1245,9 @@ function doSearch(q){
   searchQuery=q.trim();
   const btn=document.getElementById('search-clear-btn');
   if(btn) btn.style.display=searchQuery?'':'none';
-  // 検索時はidxをリセット
-  if(mode==='flash')idxFlash=0;
-  else if(mode==='type')idxType=0;
-  else idxSlide=0;
+  // 検索時はidxをリセット（フラッシュはリセットしない）
+  if(mode==='type')idxType=0;
+  else if(mode==='slide')idxSlide=0;
   updateStats();
   if(mode==='flash')renderFlash();
   else if(mode==='type')renderType();
@@ -1154,6 +1309,7 @@ function renderList(){
       <td>
         <button class="bm-btn ${pronBM.has(oi)?'on-pron':'off'}" style="padding:4px 10px;font-size:11px" onclick="toggleBM('pron',${oi})">🎤</button>
         <button class="bm-btn ${memBM.has(oi)?'on-mem':'off'}" style="padding:4px 10px;font-size:11px;margin-left:4px" onclick="toggleBM('mem',${oi})">💡</button>
+        <button style="padding:4px 10px;font-size:11px;margin-left:4px;border:1px solid var(--accent2);border-radius:14px;background:var(--card);color:var(--accent2);cursor:pointer" onclick="showEditCardByOrig(${oi})">✏️</button>
       </td>
     </tr>`;
   }).join('');
