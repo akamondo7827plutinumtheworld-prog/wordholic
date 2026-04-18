@@ -637,8 +637,8 @@ function speakBtnHtml(text){
 }
 
 function autoSpeak(){
-  // スマホ（タッチデバイス）では自動読み上げしない
-  if('ontouchstart' in window) return;
+  // Electronアプリ以外では自動読み上げしない
+  if(!window.electronTTS) return;
   if(document.getElementById('auto-speak')?.checked) speakCurrent();
 }
 
