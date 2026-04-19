@@ -901,7 +901,8 @@ function flipCard(){
   if(flipped){
     const w=getFiltered()[Math.min(idx,getFiltered().length-1)];
     if(!w)return;
-    speak(w.en);
+    // Electronアプリのみ自動読み上げ（スマホブラウザでは読み上げない）
+    if(window.electronTTS) speak(w.en);
   }
   saveProgress();
 }
