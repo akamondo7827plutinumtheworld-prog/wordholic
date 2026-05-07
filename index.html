@@ -442,25 +442,23 @@ function tryAutoRestore(){
     // Firebaseからより新しいデータがあれば上書き
     if(window.fbLoadProgress){
       window.fbLoadProgress(lastKey).then(fbData=>{
-        if(!fbData)return;
-        const fbTime=fbData.updatedAt||0;
-        const localProg=JSON.parse(localStorage.getItem('wh_prog_'+lastKey)||'{}');
-        const localTime=localProg.updatedAt||0;
-        if(fbTime>localTime){
-          console.log('Firebaseのデータが新しいので上書き');
-          idxFlash=fbData.idxFlash||0;
-          idxType=fbData.idxType||0;
-          idxSlide=fbData.idxSlide||0;
-          knownFlash=new Set(fbData.knownFlash||[]);
-          knownType=new Set(fbData.knownType||[]);
-          knownSlide=new Set(fbData.knownSlide||[]);
-          pronBM=new Set(fbData.pronBM||[]);
-          memBM=new Set(fbData.memBM||[]);
-          studyCount=fbData.studyCount||{};
-          updateStats();
-          setMode(mode);
-          showToast('📱 他のデバイスの進捗を同期しました');
-        }
+        if(!fbData||!fbData.updatedAt)return;
+        // Firebaseのデータを常に適用（複数デバイス同期）
+        idxFlash=fbData.idxFlash||0;
+        idxType=fbData.idxType||0;
+        idxSlide=fbData.idxSlide||0;
+        knownFlash=new Set(fbData.knownFlash||[]);
+        knownType=new Set(fbData.knownType||[]);
+        knownSlide=new Set(fbData.knownSlide||[]);
+        pronBM=new Set(fbData.pronBM||[]);
+        memBM=new Set(fbData.memBM||[]);
+        studyCount=fbData.studyCount||{};
+        studyDates=fbData.studyDates||{};
+        // localStorageも更新
+        localStorage.setItem('wh_prog_'+lastKey, JSON.stringify(fbData));
+        updateStats();
+        setMode(mode);
+        showToast('📱 他のデバイスの進捗を同期しました');
       }).catch(()=>{});
       // 単語データも確認
       window.fbLoadWords(lastKey).then(fbWords=>{
