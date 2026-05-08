@@ -713,6 +713,29 @@ function loadFile(input){
         return;
       }
       parseCSV(text,key,f.name);
+      // Firebaseから進捗を同期
+      if(window.fbLoadProgress){
+        window.fbLoadProgress(key).then(function(fbData){
+          if(!fbData||!fbData.updatedAt)return;
+          idxFlash=fbData.idxFlash||0;
+          idxType=fbData.idxType||0;
+          idxSlide=fbData.idxSlide||0;
+          knownFlash=new Set(fbData.knownFlash||[]);
+          knownType=new Set(fbData.knownType||[]);
+          knownSlide=new Set(fbData.knownSlide||[]);
+          pronBM=new Set(fbData.pronBM||[]);
+          memBM=new Set(fbData.memBM||[]);
+          studyCount=fbData.studyCount||{};
+          studyDates=fbData.studyDates||{};
+          localStorage.setItem('wh_prog_'+key, JSON.stringify(fbData));
+          localStorage.setItem('wh_words_'+key, JSON.stringify(words));
+          localStorage.setItem('wh_lastKey', key);
+          localStorage.setItem('wh_dispName_'+key, '📄 '+dispName);
+          updateStats();
+          setMode(mode);
+          showToast('📱 Firebaseから進捗を同期しました');
+        }).catch(function(){});
+      }
     };
     reader.readAsText(f,'UTF-8');
   } else {
@@ -729,6 +752,32 @@ function loadFile(input){
       const restored=restoreProgress(key);
       if(!restored){idxFlash=0;idxType=0;idxSlide=0;idxByFilter={};knownFlash=new Set();knownType=new Set();knownSlide=new Set();pronBM=new Set();memBM=new Set();studyDates={};filter='all';}
       init(restored);
+      // Firebaseから進捗を同期
+      if(window.fbLoadProgress){
+        window.fbLoadProgress(key).then(function(fbData){
+          if(!fbData||!fbData.updatedAt)return;
+          idxFlash=fbData.idxFlash||0;
+          idxType=fbData.idxType||0;
+          idxSlide=fbData.idxSlide||0;
+          knownFlash=new Set(fbData.knownFlash||[]);
+          knownType=new Set(fbData.knownType||[]);
+          knownSlide=new Set(fbData.knownSlide||[]);
+          pronBM=new Set(fbData.pronBM||[]);
+          memBM=new Set(fbData.memBM||[]);
+          studyCount=fbData.studyCount||{};
+          studyDates=fbData.studyDates||{};
+          // localStorageに保存
+          localStorage.setItem('wh_prog_'+key, JSON.stringify(fbData));
+          localStorage.setItem('wh_words_'+key, JSON.stringify(words));
+          localStorage.setItem('wh_lastKey', key);
+          localStorage.setItem('wh_dispName_'+key, '📄 '+dispName);
+          updateStats();
+          setMode(mode);
+          showToast('📱 Firebaseから進捗を同期しました');
+        }).catch(function(){});
+      }
+      // localStorageに保存（リロード対策）
+      saveProgress();
     };
     reader.readAsArrayBuffer(f);
   }
