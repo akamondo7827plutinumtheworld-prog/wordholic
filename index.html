@@ -442,25 +442,23 @@ function tryAutoRestore(){
     // Firebaseからより新しいデータがあれば上書き
     if(window.fbLoadProgress){
       window.fbLoadProgress(lastKey).then(fbData=>{
-        if(!fbData)return;
-        const fbTime=fbData.updatedAt||0;
-        const localProg=JSON.parse(localStorage.getItem('wh_prog_'+lastKey)||'{}');
-        const localTime=localProg.updatedAt||0;
-        if(fbTime>localTime){
-          console.log('Firebaseのデータが新しいので上書き');
-          idxFlash=fbData.idxFlash||0;
-          idxType=fbData.idxType||0;
-          idxSlide=fbData.idxSlide||0;
-          knownFlash=new Set(fbData.knownFlash||[]);
-          knownType=new Set(fbData.knownType||[]);
-          knownSlide=new Set(fbData.knownSlide||[]);
-          pronBM=new Set(fbData.pronBM||[]);
-          memBM=new Set(fbData.memBM||[]);
-          studyCount=fbData.studyCount||{};
-          updateStats();
-          setMode(mode);
-          showToast('📱 他のデバイスの進捗を同期しました');
-        }
+        if(!fbData||!fbData.updatedAt)return;
+        // Firebaseのデータを常に適用（複数デバイス同期）
+        idxFlash=fbData.idxFlash||0;
+        idxType=fbData.idxType||0;
+        idxSlide=fbData.idxSlide||0;
+        knownFlash=new Set(fbData.knownFlash||[]);
+        knownType=new Set(fbData.knownType||[]);
+        knownSlide=new Set(fbData.knownSlide||[]);
+        pronBM=new Set(fbData.pronBM||[]);
+        memBM=new Set(fbData.memBM||[]);
+        studyCount=fbData.studyCount||{};
+        studyDates=fbData.studyDates||{};
+        // localStorageも更新
+        localStorage.setItem('wh_prog_'+lastKey, JSON.stringify(fbData));
+        updateStats();
+        setMode(mode);
+        showToast('📱 他のデバイスの進捗を同期しました');
       }).catch(()=>{});
       // 単語データも確認
       window.fbLoadWords(lastKey).then(fbWords=>{
@@ -715,6 +713,29 @@ function loadFile(input){
         return;
       }
       parseCSV(text,key,f.name);
+      // Firebaseから進捗を同期
+      if(window.fbLoadProgress){
+        window.fbLoadProgress(key).then(function(fbData){
+          if(!fbData||!fbData.updatedAt)return;
+          idxFlash=fbData.idxFlash||0;
+          idxType=fbData.idxType||0;
+          idxSlide=fbData.idxSlide||0;
+          knownFlash=new Set(fbData.knownFlash||[]);
+          knownType=new Set(fbData.knownType||[]);
+          knownSlide=new Set(fbData.knownSlide||[]);
+          pronBM=new Set(fbData.pronBM||[]);
+          memBM=new Set(fbData.memBM||[]);
+          studyCount=fbData.studyCount||{};
+          studyDates=fbData.studyDates||{};
+          localStorage.setItem('wh_prog_'+key, JSON.stringify(fbData));
+          localStorage.setItem('wh_words_'+key, JSON.stringify(words));
+          localStorage.setItem('wh_lastKey', key);
+          localStorage.setItem('wh_dispName_'+key, '📄 '+dispName);
+          updateStats();
+          setMode(mode);
+          showToast('📱 Firebaseから進捗を同期しました');
+        }).catch(function(){});
+      }
     };
     reader.readAsText(f,'UTF-8');
   } else {
@@ -731,6 +752,32 @@ function loadFile(input){
       const restored=restoreProgress(key);
       if(!restored){idxFlash=0;idxType=0;idxSlide=0;idxByFilter={};knownFlash=new Set();knownType=new Set();knownSlide=new Set();pronBM=new Set();memBM=new Set();studyDates={};filter='all';}
       init(restored);
+      // Firebaseから進捗を同期
+      if(window.fbLoadProgress){
+        window.fbLoadProgress(key).then(function(fbData){
+          if(!fbData||!fbData.updatedAt)return;
+          idxFlash=fbData.idxFlash||0;
+          idxType=fbData.idxType||0;
+          idxSlide=fbData.idxSlide||0;
+          knownFlash=new Set(fbData.knownFlash||[]);
+          knownType=new Set(fbData.knownType||[]);
+          knownSlide=new Set(fbData.knownSlide||[]);
+          pronBM=new Set(fbData.pronBM||[]);
+          memBM=new Set(fbData.memBM||[]);
+          studyCount=fbData.studyCount||{};
+          studyDates=fbData.studyDates||{};
+          // localStorageに保存
+          localStorage.setItem('wh_prog_'+key, JSON.stringify(fbData));
+          localStorage.setItem('wh_words_'+key, JSON.stringify(words));
+          localStorage.setItem('wh_lastKey', key);
+          localStorage.setItem('wh_dispName_'+key, '📄 '+dispName);
+          updateStats();
+          setMode(mode);
+          showToast('📱 Firebaseから進捗を同期しました');
+        }).catch(function(){});
+      }
+      // localStorageに保存（リロード対策）
+      saveProgress();
     };
     reader.readAsArrayBuffer(f);
   }
@@ -878,8 +925,8 @@ function renderFlash(){
               <div class="card-word" style="font-family:'BIZ UDGothic',sans-serif">${w.en.replace(/\n/g,'<br>')}</div>
               <div class="card-phonetic">${w.ph||''}</div>
             </div>
-            ${w.note?`<div style="font-size:13px;color:var(--muted);margin-top:10px;text-align:center;padding:0 10px;line-height:1.6">${w.note.replace(/\n/g,'<br>')}</div>`:''}
-            <div class="card-speak" onclick="event.stopPropagation()">${speakBtnHtml(w.en)}</div>
+            ${w.note?'<div style="font-size:12px;color:var(--muted);margin-top:8px;text-align:left;padding:6px 12px;line-height:1.6;background:var(--cream);border-radius:8px;max-height:80px;overflow-y:auto;width:100%;box-sizing:border-box">'+w.note.replace(/\n/g,'<br>')+'</div>':''}
+            <div class="card-speak" style="margin-top:8px" onclick="event.stopPropagation()">${speakBtnHtml(w.en)}</div>
           </div>
         </div>
       </div>
@@ -901,7 +948,8 @@ function flipCard(){
   if(flipped){
     const w=getFiltered()[Math.min(idx,getFiltered().length-1)];
     if(!w)return;
-    speak(w.en);
+    // Electronアプリのみ自動読み上げ（スマホブラウザでは読み上げない）
+    if(window.electronTTS) speak(w.en);
   }
   saveProgress();
 }
