@@ -27,32 +27,32 @@ const deviceId = localStorage.getItem('wh_device_id') || (function(){
   return id;
 })();
 
-window.fbSaveProgress = function(dataKey, progressData) {
-  if (!dataKey) return;
-  db.collection('progress').doc(dataKey).set(Object.assign({}, progressData, {
+window.fbSaveProgress = function(key, progressData) {
+  if (!key) return;
+  db.collection('progress').doc(key).set(Object.assign({}, progressData, {
     updatedAt: Date.now(),
     deviceId: deviceId
   })).then(function(){ console.log('Firebase保存完了'); })
     .catch(function(e){ console.log('Firebase保存エラー:', e.message); });
 };
 
-window.fbLoadProgress = function(dataKey) {
-  if (!dataKey) return Promise.resolve(null);
-  return db.collection('progress').doc(dataKey).get().then(function(snap){
+window.fbLoadProgress = function(key) {
+  if (!key) return Promise.resolve(null);
+  return db.collection('progress').doc(key).get().then(function(snap){
     if (snap.exists) { console.log('Firebase読み込み完了'); return snap.data(); }
     return null;
   }).catch(function(){ return null; });
 };
 
-window.fbSaveWords = function(dataKey, words) {
-  if (!dataKey) return;
-  db.collection('words').doc(dataKey).set({ words: words, updatedAt: Date.now() })
+window.fbSaveWords = function(key, words) {
+  if (!key) return;
+  db.collection('words').doc(key).set({ words: words, updatedAt: Date.now() })
     .catch(function(){});
 };
 
-window.fbLoadWords = function(dataKey) {
-  if (!dataKey) return Promise.resolve(null);
-  return db.collection('words').doc(dataKey).get().then(function(snap){
+window.fbLoadWords = function(key) {
+  if (!key) return Promise.resolve(null);
+  return db.collection('words').doc(key).get().then(function(snap){
     if (snap.exists) return snap.data().words;
     return null;
   }).catch(function(){ return null; });
