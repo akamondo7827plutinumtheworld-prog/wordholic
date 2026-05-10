@@ -460,10 +460,13 @@ function tryAutoRestore(){
         setMode(mode);
         showToast('📱 他のデバイスの進捗を同期しました');
       }).catch(()=>{});
-      // 単語データも確認
+      // 単語データも確認（編集・追加を同期）
       window.fbLoadWords(lastKey).then(fbWords=>{
         if(!fbWords||!fbWords.length)return;
-        if(fbWords.length!==words.length){
+        // 単語数が違うか内容が違う場合は更新
+        const localStr=JSON.stringify(words);
+        const fbStr=JSON.stringify(fbWords);
+        if(localStr!==fbStr){
           words=fbWords;
           localStorage.setItem('wh_words_'+lastKey,JSON.stringify(words));
           updateStats();
