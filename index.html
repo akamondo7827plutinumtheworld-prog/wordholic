@@ -590,6 +590,8 @@ function setVoice(){
 
 function speak(text){
   if(!text)return;
+  // アポストロフィなど特殊文字を正規化
+  text=text.replace(/[‘’]/g,"'").replace(/[“”]/g,'"');
   const rate=parseFloat(document.getElementById('rate-sl')?.value||1);
   const volume=parseFloat(document.getElementById('vol-sl')?.value||1);
 
