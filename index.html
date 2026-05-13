@@ -239,10 +239,10 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
       <label>声：</label>
       <select id="voice-sel" onchange="setVoice()"></select>
       <label>速さ：</label>
-      <input type="range" id="rate-sl" min="0.5" max="2" step="0.1" value="1" oninput="document.getElementById('rate-v').textContent=parseFloat(this.value).toFixed(1)">
+      <input type="range" id="rate-sl" min="0.5" max="2" step="0.1" value="1" oninput="document.getElementById('rate-v').textContent=parseFloat(this.value).toFixed(1);saveVoiceSettings()">
       <span class="voice-val" id="rate-v">1.0</span>
       <label>音量：</label>
-      <input type="range" id="vol-sl" min="0" max="1" step="0.1" value="1" oninput="document.getElementById('vol-v').textContent=parseFloat(this.value).toFixed(1)">
+      <input type="range" id="vol-sl" min="0" max="1" step="0.1" value="1" oninput="document.getElementById('vol-v').textContent=parseFloat(this.value).toFixed(1);saveVoiceSettings()">
       <span class="voice-val" id="vol-v">1.0</span>
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
         <input type="checkbox" id="auto-speak" style="accent-color:var(--speak)"> 自動読み上げ
@@ -427,6 +427,11 @@ function applyFbData(key, fbData, fbWords){
     studyCount=fbData.studyCount||{};
     studyDates=fbData.studyDates||{};
     localStorage.setItem('wh_prog_'+key, JSON.stringify(fbData));
+    // 声の設定も同期
+    if(fbData.voiceSettings){
+      localStorage.setItem('wh_voice_settings', JSON.stringify(fbData.voiceSettings));
+      loadVoices(); // 設定を再適用
+    }
     updateStats();
     if(mode==='flash')renderFlash();
     else if(mode==='type')renderType();
@@ -653,13 +658,17 @@ function loadVoices(){
     sel.appendChild(o);
   });
 
-  // 優先順位: 1)前回選択した声 2)Ava Online 3)en-US 4)先頭
+  // 優先順位: 1)保存済み設定 2)前回選択した声 3)Ava Online 4)en-US 5)先頭
+  const savedSettings=loadVoiceSettings();
+  const savedName=savedSettings?savedSettings.voiceName:'';
   let chosen=-1;
-  if(prevName){
+  if(savedName){
+    chosen=voices.findIndex(v=>v.name===savedName);
+  }
+  if(chosen<0&&prevName){
     chosen=voices.findIndex(v=>v.name===prevName);
   }
   if(chosen<0){
-    // "Ava" を名前に含むオンライン音声を探す
     chosen=voices.findIndex(v=>v.name.includes('Ava'));
   }
   if(chosen<0){
@@ -668,6 +677,13 @@ function loadVoices(){
   if(chosen<0) chosen=0;
   sel.value=chosen;
   selectedVoice=voices[chosen];
+  // rate/volも復元
+  if(savedSettings){
+    const rateSl=document.getElementById('rate-sl');
+    const volSl=document.getElementById('vol-sl');
+    if(rateSl&&savedSettings.rate){rateSl.value=savedSettings.rate;document.getElementById('rate-v').textContent=parseFloat(savedSettings.rate).toFixed(1);}
+    if(volSl&&savedSettings.vol){volSl.value=savedSettings.vol;document.getElementById('vol-v').textContent=parseFloat(savedSettings.vol).toFixed(1);}
+  }
 
   // オンライン音声がまだ追加される可能性があるため、
   // EXE環境向けに少し後にも再チェック（最大10回）
@@ -690,6 +706,31 @@ setTimeout(loadVoices,3000);
 function setVoice(){
   const sel=document.getElementById('voice-sel');
   if(sel&&voices.length) selectedVoice=voices[+sel.value]||voices[0];
+  saveVoiceSettings();
+}
+
+function saveVoiceSettings(){
+  const sel=document.getElementById('voice-sel');
+  const rate=document.getElementById('rate-sl')?.value||'1';
+  const vol=document.getElementById('vol-sl')?.value||'1';
+  const voiceName=selectedVoice?selectedVoice.name:'';
+  const settings={voiceName, rate, vol};
+  localStorage.setItem('wh_voice_settings', JSON.stringify(settings));
+  // Firebaseにも保存
+  if(window.fbSaveProgress&&_dataKey){
+    // progressデータに voice settings をマージして保存
+    const raw=localStorage.getItem('wh_prog_'+_dataKey);
+    const prog=raw?JSON.parse(raw):{};
+    prog.voiceSettings=settings;
+    localStorage.setItem('wh_prog_'+_dataKey, JSON.stringify(prog));
+    saveProgress();
+  }
+}
+
+function loadVoiceSettings(){
+  const raw=localStorage.getItem('wh_voice_settings');
+  if(!raw) return null;
+  try{ return JSON.parse(raw); }catch(e){ return null; }
 }
 
 function speak(text){
