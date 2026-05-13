@@ -1044,7 +1044,10 @@ function renderFlash(){
         <button class="btn nav-side-btn" onclick="navigate(1)">次へ<br>▼</button>
       </div>
     </div>
-    <div style="text-align:center;font-size:16px;font-weight:600;color:var(--accent2);margin-top:10px;cursor:pointer;padding:8px;border-radius:8px;border:1.5px solid var(--accent2)" onclick="jumpToCard()" title="番号を入力してジャンプ">${Math.min(idx,filt.length-1)+1} / ${filt.length} ✈</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
+      <div style="flex:1;text-align:center;font-size:16px;font-weight:600;color:var(--accent2);cursor:pointer;padding:8px;border-radius:8px;border:1.5px solid var(--accent2)" onclick="jumpToCard()" title="番号を入力してジャンプ">${Math.min(idx,filt.length-1)+1} / ${filt.length} ✈</div>
+      <button style="padding:8px 12px;border-radius:8px;border:1.5px solid var(--accent);background:var(--card);color:var(--accent);font-size:14px;cursor:pointer" onclick="deleteCard(${oi})" title="このカードを削除">🗑️</button>
+    </div>
   `;
   autoSpeak();
 }
@@ -1170,7 +1173,10 @@ function renderType(){
       <button class="btn btn-primary" onclick="checkType()">確認 (Enter)</button>
       <button class="btn" onclick="navigate(1)">次へ →</button>
     </div>
-    <div style="text-align:center;font-size:16px;font-weight:600;color:var(--accent2);margin-top:10px;cursor:pointer;padding:8px;border-radius:8px;border:1.5px solid var(--accent2)" onclick="jumpToCard()" title="番号を入力してジャンプ">${Math.min(idx,filt.length-1)+1} / ${filt.length} ✈</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
+      <div style="flex:1;text-align:center;font-size:16px;font-weight:600;color:var(--accent2);cursor:pointer;padding:8px;border-radius:8px;border:1.5px solid var(--accent2)" onclick="jumpToCard()" title="番号を入力してジャンプ">${Math.min(idx,filt.length-1)+1} / ${filt.length} ✈</div>
+      <button style="padding:8px 12px;border-radius:8px;border:1.5px solid var(--accent);background:var(--card);color:var(--accent);font-size:14px;cursor:pointer" onclick="deleteCard(${oi})" title="このカードを削除">🗑️</button>
+    </div>
   `;
   setTimeout(()=>{const i=document.getElementById('t-input');if(i)i.focus();},50);
   autoSpeak();
@@ -1209,7 +1215,10 @@ function renderSlide(){
       <div class="slide-en">${w.en.replace(/\n/g,"<br>")}</div>
       <div class="slide-speak">${speakBtnHtml(w.en)}</div>
     </div>
-    <div style="text-align:center;font-size:16px;font-weight:600;color:var(--accent2);margin-top:10px;cursor:pointer;padding:8px;border-radius:8px;border:1.5px solid var(--accent2)" onclick="jumpToCard()" title="番号を入力してジャンプ">${Math.min(idx,filt.length-1)+1} / ${filt.length} ✈</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
+      <div style="flex:1;text-align:center;font-size:16px;font-weight:600;color:var(--accent2);cursor:pointer;padding:8px;border-radius:8px;border:1.5px solid var(--accent2)" onclick="jumpToCard()" title="番号を入力してジャンプ">${Math.min(idx,filt.length-1)+1} / ${filt.length} ✈</div>
+      <button style="padding:8px 12px;border-radius:8px;border:1.5px solid var(--accent);background:var(--card);color:var(--accent);font-size:14px;cursor:pointer" onclick="deleteCard(${oi})" title="このカードを削除">🗑️</button>
+    </div>
   `;
 }
 
