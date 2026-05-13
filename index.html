@@ -15,7 +15,6 @@ const firebaseConfig = {
   messagingSenderId: "653808647521",
   appId: "1:653808647521:web:b3734d1d221284cd681920"
 };
-
 try {
   firebase.initializeApp(firebaseConfig);
 } catch(e) {}
@@ -85,6 +84,27 @@ body{font-family:'BIZ UDGothic',sans-serif;background:var(--paper);color:var(--i
 .btn-good{background:#27ae60;color:#fff;border-color:#27ae60}
 .btn-bad{background:var(--accent);color:#fff}
 input[type=file]{display:none}
+
+/* スマホ用固定同期ボタン */
+#mobile-sync-btn{
+  display:none;
+  position:fixed;
+  bottom:20px;
+  right:20px;
+  z-index:1000;
+  background:var(--accent2);
+  color:#fff;
+  border:none;
+  border-radius:50px;
+  padding:14px 20px;
+  font-size:16px;
+  font-family:'BIZ UDGothic',sans-serif;
+  box-shadow:0 4px 12px rgba(0,0,0,0.3);
+  cursor:pointer;
+}
+@media(max-width:600px){
+  #mobile-sync-btn{display:block;}
+}
 
 /* Speak button */
 .speak-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 20px;border-radius:20px;border:1.5px solid var(--speak);background:var(--card);color:var(--speak);font-family:'BIZ UDGothic',sans-serif;font-size:14px;cursor:pointer;transition:all .2s;font-weight:600}
@@ -224,6 +244,8 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
       <button class="btn" onclick="saveToExcel()">💾 Excel保存</button>
       <button class="btn" onclick="showStats()">📊 記録</button>
       <button class="btn" onclick="confirmReset()" title="進捗をリセット">🔄 リセット</button>
+      <button class="btn" id="sync-btn" onclick="manualSync()" title="Firebaseから進捗を同期">☁️ 同期</button>
+      <button class="btn" onclick="debugSync()" title="デバッグ">🔍 診断</button>
     </div>
   </div>
 
@@ -376,6 +398,105 @@ async function fetchPhonetic(word){
     phoneticCache[key]=ph;
     return ph;
   }catch(e){phoneticCache[key]='';return '';}
+}
+
+// ── 手動同期 ──────────────────────────────────────────────
+function debugSync(){
+  const modeFlashEl=document.getElementById('mode-flash');
+  const mainEl=document.getElementById('main');
+  const info=[
+    'words: '+words.length,
+    '_dataKey: '+_dataKey,
+    'filter: '+filter,
+    'mode: '+mode,
+    'idxFlash: '+idxFlash,
+    'knownFlash: '+knownFlash.size,
+    'getFiltered: '+getFiltered().length,
+    'mode-flash display: '+(modeFlashEl?modeFlashEl.style.display:'null'),
+    'main display: '+(mainEl?mainEl.style.display:'null'),
+    'lsLastKey: '+localStorage.getItem('wh_lastKey'),
+    'lsProgKeys: '+Object.keys(localStorage).filter(k=>k.startsWith('wh_prog_')).join('|'),
+  ];
+  alert(info.join('\n'));
+}
+
+function applyFbData(key, fbData, fbWords){
+  // 単語データを更新
+  if(fbWords&&fbWords.length){
+    words=fbWords;
+    _dataKey=key;
+    localStorage.setItem('wh_words_'+key, JSON.stringify(words));
+    localStorage.setItem('wh_lastKey', key);
+    document.getElementById('main').style.display='block';
+  }
+  // 進捗を更新
+  if(fbData&&fbData.updatedAt){
+    _dataKey=key;
+    idxFlash=fbData.idxFlash||0;
+    idxType=fbData.idxType||0;
+    idxSlide=fbData.idxSlide||0;
+    idxByFilter=fbData.idxByFilter||{}; // キャッシュもリセット
+    knownFlash=new Set(fbData.knownFlash||[]);
+    knownType=new Set(fbData.knownType||[]);
+    knownSlide=new Set(fbData.knownSlide||[]);
+    pronBM=new Set(fbData.pronBM||[]);
+    memBM=new Set(fbData.memBM||[]);
+    studyCount=fbData.studyCount||{};
+    studyDates=fbData.studyDates||{};
+    localStorage.setItem('wh_prog_'+key, JSON.stringify(fbData));
+    updateStats();
+    if(mode==='flash')renderFlash();
+    else if(mode==='type')renderType();
+    else if(mode==='slide')renderSlide();
+    else if(mode==='list')renderList();
+    const d=new Date(fbData.updatedAt);
+    const ts=d.getMonth()+1+'/'+d.getDate()+' '+d.getHours()+':'+String(d.getMinutes()).padStart(2,'0');
+    const mbtn3=document.getElementById('mobile-sync-btn');
+    if(mbtn3){mbtn3.textContent='☁️ 同期';mbtn3.disabled=false;}
+    showToast('✅ 同期完了（最終更新: '+ts+'）');
+    return true;
+  }
+  return false;
+}
+
+function manualSync(){
+  if(!window.fbLoadProgress){showToast('❌ Firebase未接続');return;}
+  const btn=document.getElementById('sync-btn');
+  if(btn){btn.textContent='☁️ 同期中...';btn.disabled=true;}
+  const mbtn=document.getElementById('mobile-sync-btn');
+  if(mbtn){mbtn.textContent='☁️ 同期中...';mbtn.disabled=true;}
+
+  // _dataKeyがあればそれを使い、なければlastKeyを使う
+  // ただしlastKeyが間違っている場合に備えてファイル名から再生成も試みる
+  let key=_dataKey||'';
+  if(!key){
+    // localStorageから全キーを探してwh_prog_で始まるものを使う
+    for(let i=0;i<localStorage.length;i++){
+      const k=localStorage.key(i);
+      if(k&&k.startsWith('wh_prog_')&&k!=='wh_prog_demo'){
+        key=k.replace('wh_prog_','');
+        break;
+      }
+    }
+  }
+  if(!key){
+    if(btn){btn.textContent='☁️ 同期';btn.disabled=false;}
+    showToast('❌ キーが見つかりません。一度Excelを読み込んでください');
+    return;
+  }
+
+  Promise.all([
+    window.fbLoadProgress(key).catch(function(){return null;}),
+    window.fbLoadWords(key).catch(function(){return null;})
+  ]).then(function(results){
+    if(btn){btn.textContent='☁️ 同期';btn.disabled=false;}
+    applyFbData(key, results[0], results[1]);
+  }).catch(function(e){
+    if(btn){btn.textContent='☁️ 同期';btn.disabled=false;}
+    const mbtn2=document.getElementById('mobile-sync-btn');
+    if(mbtn2){mbtn2.textContent='☁️ 同期';mbtn2.disabled=false;}
+    showToast('❌ 同期失敗: '+(e.message||e));
+  });
 }
 
 // ── 進捗保存・復元 ──────────────────────────────────────
@@ -590,8 +711,6 @@ function setVoice(){
 
 function speak(text){
   if(!text)return;
-  // アポストロフィなど特殊文字を正規化
-  text=text.replace(/\u2018|\u2019/g,"'").replace(/\u201C|\u201D/g,'"');
   const rate=parseFloat(document.getElementById('rate-sl')?.value||1);
   const volume=parseFloat(document.getElementById('vol-sl')?.value||1);
 
@@ -633,7 +752,8 @@ function speakCurrent(){
 
 function speakBtnHtml(text){
   const esc=text.replace(/"/g,'&quot;');
-  return `<button class="speak-btn" data-text="${esc}" onclick="event.stopPropagation();speak('${esc}')">
+  const escSQ=text.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  return `<button class="speak-btn" data-text="${esc}" onclick="event.stopPropagation();speak('${escSQ}')">
     <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
     読み上げる
   </button>`;
@@ -1399,3 +1519,4 @@ if(window.electronTTS){
   });
 }
 </script>
+<button id="mobile-sync-btn" onclick="manualSync()">☁️ 同期</button>
