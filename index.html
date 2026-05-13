@@ -76,8 +76,9 @@ body{font-family:'BIZ UDGothic',sans-serif;background:var(--paper);color:var(--i
 .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;border-bottom:2px solid var(--ink);padding-bottom:12px;flex-wrap:wrap;gap:10px}
 .logo{font-family:'BIZ UDGothic',sans-serif;font-size:24px;font-weight:700;letter-spacing:2px;color:var(--accent)}
 .logo span{color:var(--ink);font-size:12px;font-weight:400;display:block;letter-spacing:3px;margin-top:2px}
-.header-btns{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.header-btns{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .btn{padding:8px 16px;border-radius:7px;border:1.5px solid var(--border);background:var(--card);color:var(--ink);font-family:'BIZ UDGothic',sans-serif;font-size:13px;cursor:pointer;transition:all .15s;white-space:nowrap}
+@media(max-width:600px){.btn{padding:7px 10px;font-size:12px;}}
 .btn:hover{background:var(--cream);border-color:var(--accent)}
 .btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
 .btn-primary:hover{opacity:.9}
@@ -85,13 +86,8 @@ body{font-family:'BIZ UDGothic',sans-serif;background:var(--paper);color:var(--i
 .btn-bad{background:var(--accent);color:#fff}
 input[type=file]{display:none}
 
-/* スマホ用同期ボタン：PCでは非表示、スマホではヘッダーに表示 */
-#mobile-sync-btn{display:none;}
-@media(max-width:600px){
-  #mobile-sync-btn{display:inline-flex;}
-  #sync-btn{display:none;}
-  #debug-btn{display:none;}
-}
+/* スマホ用同期ボタン廃止 */
+#mobile-sync-btn{display:none!important;}
 
 /* Speak button */
 .speak-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 20px;border-radius:20px;border:1.5px solid var(--speak);background:var(--card);color:var(--speak);font-family:'BIZ UDGothic',sans-serif;font-size:14px;cursor:pointer;transition:all .2s;font-weight:600}
@@ -232,8 +228,7 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
       <button class="btn" onclick="showStats()">📊 記録</button>
       <button class="btn" onclick="confirmReset()" title="進捗をリセット">🔄 リセット</button>
       <button class="btn" id="sync-btn" onclick="manualSync()" title="Firebaseから進捗を同期">☁️ 同期</button>
-      <button class="btn" id="mobile-sync-btn" onclick="manualSync()" title="Firebaseから進捗を同期">☁️ 同期</button>
-      <button class="btn" onclick="debugSync()" title="デバッグ">🔍 診断</button>
+
     </div>
   </div>
 
@@ -1446,6 +1441,26 @@ function adjustStudyCount(oi, delta){
 }
 
 // ── List ─────────────────────────────────────────────────
+function deleteCard(oi){
+  if(!confirm('このカードを削除しますか？\n「'+words[oi].jp+'」')) return;
+  // 進捗データからも削除
+  knownFlash.delete(oi);
+  knownType.delete(oi);
+  knownSlide.delete(oi);
+  pronBM.delete(oi);
+  memBM.delete(oi);
+  delete studyCount[oi];
+  // wordsから削除
+  words.splice(oi, 1);
+  // origインデックスを振り直し
+  words.forEach((w,i)=>w.orig=i);
+  // 保存
+  saveProgress();
+  if(window.fbSaveWords) window.fbSaveWords(_dataKey, words);
+  renderList();
+  showToast('🗑️ カードを削除しました');
+}
+
 function renderList(){
   const filt=getFiltered(),el=document.getElementById('mode-list');
   if(!filt.length){el.innerHTML=`<div class="empty-filter">📭 このフィルターに単語がありません</div>`;return;}
@@ -1471,6 +1486,7 @@ function renderList(){
         <button class="bm-btn ${pronBM.has(oi)?'on-pron':'off'}" style="padding:4px 10px;font-size:11px" onclick="toggleBM('pron',${oi})">🎤</button>
         <button class="bm-btn ${memBM.has(oi)?'on-mem':'off'}" style="padding:4px 10px;font-size:11px;margin-left:4px" onclick="toggleBM('mem',${oi})">💡</button>
         <button style="padding:4px 10px;font-size:11px;margin-left:4px;border:1px solid var(--accent2);border-radius:14px;background:var(--card);color:var(--accent2);cursor:pointer" onclick="showEditCardByOrig(${oi})">✏️</button>
+        <button style="padding:4px 10px;font-size:11px;margin-left:4px;border:1px solid var(--accent);border-radius:14px;background:var(--card);color:var(--accent);cursor:pointer" onclick="deleteCard(${oi})">🗑️</button>
       </td>
     </tr>`;
   }).join('');
