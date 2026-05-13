@@ -85,25 +85,12 @@ body{font-family:'BIZ UDGothic',sans-serif;background:var(--paper);color:var(--i
 .btn-bad{background:var(--accent);color:#fff}
 input[type=file]{display:none}
 
-/* スマホ用固定同期ボタン */
-#mobile-sync-btn{
-  display:none;
-  position:fixed;
-  bottom:20px;
-  right:20px;
-  z-index:1000;
-  background:var(--accent2);
-  color:#fff;
-  border:none;
-  border-radius:50px;
-  padding:14px 20px;
-  font-size:16px;
-  font-family:'BIZ UDGothic',sans-serif;
-  box-shadow:0 4px 12px rgba(0,0,0,0.3);
-  cursor:pointer;
-}
+/* スマホ用同期ボタン：PCでは非表示、スマホではヘッダーに表示 */
+#mobile-sync-btn{display:none;}
 @media(max-width:600px){
-  #mobile-sync-btn{display:block;}
+  #mobile-sync-btn{display:inline-flex;}
+  #sync-btn{display:none;}
+  #debug-btn{display:none;}
 }
 
 /* Speak button */
@@ -245,6 +232,7 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
       <button class="btn" onclick="showStats()">📊 記録</button>
       <button class="btn" onclick="confirmReset()" title="進捗をリセット">🔄 リセット</button>
       <button class="btn" id="sync-btn" onclick="manualSync()" title="Firebaseから進捗を同期">☁️ 同期</button>
+      <button class="btn" id="mobile-sync-btn" onclick="manualSync()" title="Firebaseから進捗を同期">☁️ 同期</button>
       <button class="btn" onclick="debugSync()" title="デバッグ">🔍 診断</button>
     </div>
   </div>
@@ -1519,4 +1507,3 @@ if(window.electronTTS){
   });
 }
 </script>
-<button id="mobile-sync-btn" onclick="manualSync()">☁️ 同期</button>
