@@ -490,6 +490,8 @@ function manualSync(){
 // ── 進捗保存・復元 ──────────────────────────────────────
 function saveProgress(){
   if(!_dataKey)return;
+  const rawVS=localStorage.getItem('wh_voice_settings');
+  const voiceSettings=rawVS?JSON.parse(rawVS):null;
   const progressData = {
     idx:getIdx(), idxFlash, idxType, idxSlide, idxByFilter, filter, mode,
     knownFlash:[...knownFlash],
@@ -499,6 +501,7 @@ function saveProgress(){
     memBM:[...memBM],
     studyCount,
     studyDates,
+    voiceSettings,
     updatedAt: Date.now()
   };
   try{
@@ -716,15 +719,8 @@ function saveVoiceSettings(){
   const voiceName=selectedVoice?selectedVoice.name:'';
   const settings={voiceName, rate, vol};
   localStorage.setItem('wh_voice_settings', JSON.stringify(settings));
-  // Firebaseにも保存
-  if(window.fbSaveProgress&&_dataKey){
-    // progressデータに voice settings をマージして保存
-    const raw=localStorage.getItem('wh_prog_'+_dataKey);
-    const prog=raw?JSON.parse(raw):{};
-    prog.voiceSettings=settings;
-    localStorage.setItem('wh_prog_'+_dataKey, JSON.stringify(prog));
-    saveProgress();
-  }
+  // saveProgressでFirebaseにも保存（voiceSettingsはsaveProgress内で読み込まれる）
+  saveProgress();
 }
 
 function loadVoiceSettings(){
