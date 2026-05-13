@@ -716,10 +716,12 @@ function saveVoiceSettings(){
   const sel=document.getElementById('voice-sel');
   const rate=document.getElementById('rate-sl')?.value||'1';
   const vol=document.getElementById('vol-sl')?.value||'1';
-  const voiceName=selectedVoice?selectedVoice.name:'';
+  // Electron環境はsel.valueが声名（en-US-AvaNeural等）、ブラウザはselectedVoice.name
+  const voiceName=window.electronTTS
+    ? (sel?sel.value:'')
+    : (selectedVoice?selectedVoice.name:'');
   const settings={voiceName, rate, vol};
   localStorage.setItem('wh_voice_settings', JSON.stringify(settings));
-  // saveProgressでFirebaseにも保存（voiceSettingsはsaveProgress内で読み込まれる）
   saveProgress();
 }
 
@@ -959,6 +961,15 @@ function init(restored){
     if(sel){
       sel.innerHTML='<option value="en-US-AvaNeural">Ava (自然・女性)</option><option value="en-US-AriaNeural">Aria (自然・女性)</option><option value="en-US-JennyNeural">Jenny (自然・女性)</option><option value="en-US-GuyNeural">Guy (自然・男性)</option>';
       sel.disabled=false;
+      // 保存済みの声設定を復元
+      const savedVS=loadVoiceSettings();
+      if(savedVS){
+        if(savedVS.voiceName) sel.value=savedVS.voiceName;
+        const rateSl=document.getElementById('rate-sl');
+        const volSl=document.getElementById('vol-sl');
+        if(rateSl&&savedVS.rate){rateSl.value=savedVS.rate;document.getElementById('rate-v').textContent=parseFloat(savedVS.rate).toFixed(1);}
+        if(volSl&&savedVS.vol){volSl.value=savedVS.vol;document.getElementById('vol-v').textContent=parseFloat(savedVS.vol).toFixed(1);}
+      }
     }
   }
   updateStats();
