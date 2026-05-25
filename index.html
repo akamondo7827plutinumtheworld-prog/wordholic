@@ -288,9 +288,9 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
       <button class="btn" id="slide-stop-btn" style="display:none" onclick="stopSlide()">⏹ 停止</button>
       <button class="btn btn-primary" id="slide-start-btn" onclick="startSlide()">▶ 自動再生</button>
       <span style="font-size:13px;color:var(--muted);margin-left:8px">間隔：</span>
-      <select id="speed-sel" onchange="slideSpeed=+this.value; if(slideTimer){clearTimeout(slideTimer);slideTimer=null;}">
-        <option value="2">速い(2秒)</option>
-        <option value="3" selected>普通(3秒)</option>
+      <select id="speed-sel" onchange="slideSpeed=+this.value; saveProgress(); if(slideTimer){clearTimeout(slideTimer);slideTimer=null;}">
+        <option value="2" selected>速い(2秒)</option>
+        <option value="3">普通(3秒)</option>
         <option value="5">ゆっくり(5秒)</option>
         <option value="8">超ゆっくり(8秒)</option>
       </select>
@@ -301,12 +301,12 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
     <div id="slide-range-bar" style="margin-top:10px;background:var(--cream);border:1px solid var(--border);border-radius:10px;padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <span style="font-size:13px;font-weight:600;color:var(--ink)">🎯 再生範囲：</span>
       <label style="font-size:13px;color:var(--muted)">カード番号</label>
-      <input type="number" id="slide-range-from" min="1" value="1" style="width:70px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:'BIZ UDGothic',sans-serif;text-align:center;background:var(--paper);color:var(--ink)" oninput="validateSlideRange()">
+      <input type="number" id="slide-range-from" min="1" value="1" style="width:70px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:'BIZ UDGothic',sans-serif;text-align:center;background:var(--paper);color:var(--ink)" oninput="validateSlideRange();saveProgress()">
       <span style="font-size:13px;color:var(--muted)">〜</span>
-      <input type="number" id="slide-range-to" min="1" value="" placeholder="最後" style="width:70px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:'BIZ UDGothic',sans-serif;text-align:center;background:var(--paper);color:var(--ink)" oninput="validateSlideRange()">
+      <input type="number" id="slide-range-to" min="1" value="" placeholder="最後" style="width:70px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:'BIZ UDGothic',sans-serif;text-align:center;background:var(--paper);color:var(--ink)" oninput="validateSlideRange();saveProgress()">
       <span id="slide-range-hint" style="font-size:11px;color:var(--muted)"></span>
       <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;margin-left:4px">
-        <input type="checkbox" id="slide-loop" style="accent-color:var(--accent)"> ループ
+        <input type="checkbox" id="slide-loop" style="accent-color:var(--accent)" onchange="saveProgress()"> ループ
       </label>
     </div>
     </div>
@@ -384,7 +384,7 @@ Object.defineProperty(window,'idx',{get:()=>getIdx(),set:(v)=>setIdx(v)});
 let knownFlash=new Set(), knownType=new Set(), knownSlide=new Set();
 function getKnown(){ return mode==='flash'?knownFlash:mode==='type'?knownType:knownSlide; }
 // モード別known - getKnown()で取得
-let mode='flash', filter='all', flipped=false, slideTimer=null, slideSpeed=3;
+let mode='flash', filter='all', flipped=false, slideTimer=null, slideSpeed=2;
 let voices=[], selectedVoice=null;
 let _dataKey=''; // ファイル識別キー
 
@@ -458,6 +458,8 @@ function applyFbData(key, fbData, fbWords){
       localStorage.setItem('wh_voice_settings', JSON.stringify(fbData.voiceSettings));
       loadVoices(); // 設定を再適用
     }
+    // スライド設定も同期
+    if(fbData.slideSettings) applySlideSettingsToDOM(fbData.slideSettings);
     updateStats();
     if(mode==='flash')renderFlash();
     else if(mode==='type')renderType();
@@ -518,6 +520,13 @@ function saveProgress(){
   if(!_dataKey)return;
   const rawVS=localStorage.getItem('wh_voice_settings');
   const voiceSettings=rawVS?JSON.parse(rawVS):null;
+  // スライド設定も保存
+  const slideSettings={
+    speed: slideSpeed,
+    rangeFrom: document.getElementById('slide-range-from')?.value||'1',
+    rangeTo: document.getElementById('slide-range-to')?.value||'',
+    loop: document.getElementById('slide-loop')?.checked||false
+  };
   const progressData = {
     idx:getIdx(), idxFlash, idxType, idxSlide, idxByFilter, filter, mode,
     knownFlash:[...knownFlash],
@@ -528,6 +537,7 @@ function saveProgress(){
     studyCount,
     studyDates,
     voiceSettings,
+    slideSettings,
     updatedAt: Date.now()
   };
   try{
@@ -560,6 +570,13 @@ function restoreProgress(key){
     memBM=new Set(d.memBM||[]);
     studyCount=d.studyCount||{};
     studyDates=d.studyDates||{};
+    // スライド設定を復元
+    if(d.slideSettings){
+      const ss=d.slideSettings;
+      slideSpeed=ss.speed||2;
+      // DOM要素はinit後に適用するため一時保存
+      window._pendingSlideSettings=ss;
+    }
     return true;
   }catch(e){return false;}
 }
@@ -592,6 +609,7 @@ function tryAutoRestore(){
         memBM=new Set(fbData.memBM||[]);
         studyCount=fbData.studyCount||{};
         studyDates=fbData.studyDates||{};
+        if(fbData.slideSettings) applySlideSettingsToDOM(fbData.slideSettings);
         // localStorageも更新
         localStorage.setItem('wh_prog_'+lastKey, JSON.stringify(fbData));
         updateStats();
@@ -764,7 +782,8 @@ function speak(text){
 
   // ★ Electron環境: PowerShell経由でAva Online (Windows TTS) を使う
   if(window.electronTTS){
-    window.electronTTS.stop();
+    // スライド自動再生中はstop()を呼ばない（onendedの誤発火を防ぐ）
+    if(!window._slideRunning) window.electronTTS.stop();
     const voice=document.getElementById('voice-sel')?.value||'en-US-AvaNeural';
     window.electronTTS.speak(text, rate, volume, voice);
     document.querySelectorAll('.speak-btn').forEach(b=>b.classList.remove('speaking'));
@@ -999,7 +1018,26 @@ function init(restored){
   updateStats();
   setFilter(filter,true);
   setMode(mode);
+  // スライド設定をDOMに反映（setMode後にDOMが存在する）
+  if(window._pendingSlideSettings){
+    applySlideSettingsToDOM(window._pendingSlideSettings);
+    window._pendingSlideSettings=null;
+  }
   if(restored) showToast('📖 前回の続きから再開しました（'+idx+'番目）');
+}
+
+// スライド設定をDOMに反映する共通関数
+function applySlideSettingsToDOM(ss){
+  if(!ss) return;
+  const speedSel=document.getElementById('speed-sel');
+  if(speedSel){ speedSel.value=String(ss.speed||2); slideSpeed=ss.speed||2; }
+  const fromEl=document.getElementById('slide-range-from');
+  const toEl=document.getElementById('slide-range-to');
+  const loopEl=document.getElementById('slide-loop');
+  if(fromEl) fromEl.value=ss.rangeFrom||'1';
+  if(toEl) toEl.value=ss.rangeTo||'';
+  if(loopEl) loopEl.checked=ss.loop||false;
+  validateSlideRange();
 }
 
 function updateStats(){
@@ -1043,6 +1081,8 @@ function setMode(m){
     t.classList.toggle('active',['flash','type','slide','list'][i]===m);
   });
   if(slideTimer){clearTimeout(slideTimer);slideTimer=null;}
+  window._slideRunning=false;
+  window._slideOnAudioEnd=null;
   if(window.electronTTS) window.electronTTS.stop();
   else window.speechSynthesis.cancel();
   if(m==='flash')renderFlash();
@@ -1286,6 +1326,7 @@ function renderSlide(){
       ${bmDotsHtml(oi)}
       <div class="slide-jp">${w.jp.replace(/\n/g,'<br>')}</div>
       <div class="slide-en">${w.en.replace(/\n/g,"<br>")}</div>
+      ${w.ph?`<div style="font-size:28px;color:var(--muted);font-family:'BIZ UDGothic',sans-serif;margin-top:4px;letter-spacing:1px">${w.ph}</div>`:''}
       <div class="slide-speak">${speakBtnHtml(w.en)}</div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
@@ -1329,11 +1370,15 @@ function updateSlideRangeMax(){
 }
 
 function startSlide(){
-  const sb=document.getElementById('slide-start-btn'),st=document.getElementById('slide-stop-btn');
-  if(sb)sb.style.display='none';if(st)st.style.display='';
+  // 初回呼び出し時だけボタン切り替え
+  if(!window._slideRunning){
+    const sb=document.getElementById('slide-start-btn'),st=document.getElementById('slide-stop-btn');
+    if(sb)sb.style.display='none';if(st)st.style.display='';
+    window._slideRunning=true;
+  }
 
   const filt=getFiltered();
-  if(!filt.length)return;
+  if(!filt.length){ stopSlide(); return; }
 
   // 範囲チェック：現在のidxが範囲外なら開始位置に移動
   const {from,to}=getSlideRange();
@@ -1341,28 +1386,39 @@ function startSlide(){
 
   const w=filt[Math.min(idx,filt.length-1)];
 
-  // 読み上げ後に次へ進む共通処理
-  function goNext(){
-    const {from:f,to:t}=getSlideRange();
-    const loop=document.getElementById('slide-loop')?.checked;
-    const nextIdx=idx+1;
-    if(nextIdx>t){
-      if(loop){
-        idx=f; updateStats(); renderSlide(); startSlide();
+  // 読み上げ完了後、slideSpeed秒待って次のカードへ
+  function afterSpeak(){
+    if(!window._slideRunning) return;
+    slideTimer=setTimeout(function(){
+      if(!window._slideRunning) return;
+      // 次のカードへ進む
+      const {from:f,to:t}=getSlideRange();
+      const loop=document.getElementById('slide-loop')?.checked;
+      if(idx+1>t){
+        if(loop){
+          idx=f;
+        } else {
+          stopSlide();
+          showToast('✅ 指定範囲の再生が終わりました');
+          return;
+        }
       } else {
-        stopSlide();
-        showToast('✅ 指定範囲の再生が終わりました');
+        idx=idx+1;
       }
-      return;
-    }
-    navigate(1);
-    startSlide();
+      updateStats();
+      renderSlide();
+      saveProgress();
+      // 少し間を置いてから次の読み上げ開始
+      slideTimer=setTimeout(function(){
+        if(window._slideRunning) startSlide();
+      }, 200);
+    }, slideSpeed*1000);
   }
 
   if(window.electronTTS){
+    // コールバックを登録してからspeakを呼ぶ
+    window._slideOnAudioEnd = afterSpeak;
     speak(w.en);
-    const dur = Math.max(w.en.length * 90 + 1500, 2000);
-    slideTimer = setTimeout(goNext, dur + slideSpeed*1000);
     return;
   }
 
@@ -1373,31 +1429,23 @@ function startSlide(){
   if(selectedVoice) utt.voice=selectedVoice;
   utt.rate=parseFloat(document.getElementById('rate-sl')?.value||1);
   utt.volume=parseFloat(document.getElementById('vol-sl')?.value||1);
-  utt.onend=()=>{
-    slideTimer=setTimeout(()=>{
-      renderSlide();
-      goNext();
-    }, slideSpeed*1000);
-  };
-  // iOS Safari workaround: onend が発火しない場合のフォールバック
-  const fallbackDur = Math.max(w.en.split(' ').length * 600 + 1000, 2000) + slideSpeed*1000;
-  const fallbackTimer = setTimeout(()=>{
-    if(slideTimer){
-      renderSlide();
-      goNext();
-    }
-  }, fallbackDur + 2000);
-  utt.onend=()=>{
-    clearTimeout(fallbackTimer);
-    slideTimer=setTimeout(()=>{
-      renderSlide();
-      goNext();
-    }, slideSpeed*1000);
-  };
+
+  let endFired=false;
+  function onSpeakEnd(){
+    if(endFired||!window._slideRunning) return;
+    endFired=true;
+    afterSpeak();
+  }
+  utt.onend=onSpeakEnd;
+  // iOSフォールバック（onendが発火しない場合）
+  const fallbackDur=Math.max(w.en.split(' ').length*700+1500, 3000);
+  setTimeout(onSpeakEnd, fallbackDur);
   window.speechSynthesis.speak(utt);
 }
 
 function stopSlide(){
+  window._slideRunning=false;
+  window._slideOnAudioEnd=null;
   if(slideTimer){clearTimeout(slideTimer);slideTimer=null;}
   const sb=document.getElementById('slide-start-btn'),st=document.getElementById('slide-stop-btn');
   if(sb)sb.style.display='';if(st)st.style.display='none';
@@ -1658,16 +1706,41 @@ function renderList(){
 <script>
 if(window.electronTTS){
   let _audio = null;
+  let _audioLocked = false; // stop()によるonendedの誤発火を防ぐ
+  window._slideOnAudioEnd = null;
+
   window.electronTTS.onAudioReady(function(url){
     console.log('audio url:', url);
-    if(!url){ if(_audio){ _audio.pause(); _audio=null; } return; }
-    if(_audio){ _audio.pause(); _audio=null; }
+    // 前の音声を停止（onendedが発火しないよう先にnullにする）
+    if(_audio){
+      _audioLocked = true;
+      _audio.pause();
+      _audio.onended = null;
+      _audio = null;
+      _audioLocked = false;
+    }
+    if(!url) return;
+
     _audio = new Audio(url);
     _audio.load();
+    _audio.onended = function(){
+      if(_audioLocked) return; // stop()による誤発火は無視
+      console.log('読み上げ完了');
+      if(typeof window._slideOnAudioEnd === 'function'){
+        const cb = window._slideOnAudioEnd;
+        window._slideOnAudioEnd = null;
+        cb();
+      }
+    };
     _audio.play().then(function(){
       console.log('再生成功');
     }).catch(function(e){
       console.log('再生失敗:', e.message);
+      if(typeof window._slideOnAudioEnd === 'function'){
+        const cb = window._slideOnAudioEnd;
+        window._slideOnAudioEnd = null;
+        cb();
+      }
     });
   });
 }
