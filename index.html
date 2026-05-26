@@ -705,7 +705,7 @@ function loadVoices(){
     sel.appendChild(o);
   });
 
-  // 優先順位: 1)保存済み設定 2)前回選択した声 3)Ava Online 4)en-US 5)先頭
+  // 優先順位: 1)保存済み設定 2)前回選択した声 3)スマホ向け自然な声 4)en-US 5)先頭
   const savedSettings=loadVoiceSettings();
   const savedName=savedSettings?savedSettings.voiceName:'';
   let chosen=-1;
@@ -715,8 +715,23 @@ function loadVoices(){
   if(chosen<0&&prevName){
     chosen=voices.findIndex(v=>v.name===prevName);
   }
+  // スマホ向け：iOS/Android の自然な声を優先
+  const preferredNames=[
+    'Samantha',        // iOS 標準（高品質）
+    'Karen',           // iOS オーストラリア
+    'Daniel',          // iOS イギリス
+    'Moira',           // iOS アイルランド
+    'Ava',             // Windows/Edge
+  ];
   if(chosen<0){
-    chosen=voices.findIndex(v=>v.name.includes('Ava'));
+    for(const pref of preferredNames){
+      chosen=voices.findIndex(v=>v.name.includes(pref)&&v.lang.startsWith('en'));
+      if(chosen>=0) break;
+    }
+  }
+  if(chosen<0){
+    // ローカル音声（localServiceUrl が空）を優先（オフラインでも使える）
+    chosen=voices.findIndex(v=>v.lang==='en-US'&&v.localService);
   }
   if(chosen<0){
     chosen=voices.findIndex(v=>v.lang==='en-US');
@@ -795,21 +810,42 @@ function speak(text){
     return;
   }
 
-  // ブラウザ環境: Web Speech API（従来通り）
+  // ブラウザ環境: Web Speech API
   window.speechSynthesis.cancel();
   const utt=new SpeechSynthesisUtterance(text);
   utt.lang='en-US';
   if(selectedVoice) utt.voice=selectedVoice;
   utt.rate=rate;
   utt.volume=volume;
-  utt.onstart=()=>{document.querySelectorAll('.speak-btn').forEach(b=>b.classList.remove('speaking'));};
-  utt.onend=()=>{document.querySelectorAll('.speak-btn').forEach(b=>b.classList.remove('speaking'));};
+  utt.onstart=()=>{
+    document.querySelectorAll('.speak-btn').forEach(b=>b.classList.remove('speaking'));
+    // iOSバグ対策: 読み上げ中にspeechSynthesisが止まらないようkeepAlive
+    if(_iosKeepAliveTimer) clearInterval(_iosKeepAliveTimer);
+    _iosKeepAliveTimer=setInterval(()=>{
+      if(window.speechSynthesis.speaking){
+        window.speechSynthesis.pause();
+        window.speechSynthesis.resume();
+      } else {
+        clearInterval(_iosKeepAliveTimer);
+        _iosKeepAliveTimer=null;
+      }
+    },5000);
+  };
+  utt.onend=()=>{
+    if(_iosKeepAliveTimer){clearInterval(_iosKeepAliveTimer);_iosKeepAliveTimer=null;}
+    document.querySelectorAll('.speak-btn').forEach(b=>b.classList.remove('speaking'));
+  };
+  utt.onerror=()=>{
+    if(_iosKeepAliveTimer){clearInterval(_iosKeepAliveTimer);_iosKeepAliveTimer=null;}
+    document.querySelectorAll('.speak-btn').forEach(b=>b.classList.remove('speaking'));
+  };
   window.speechSynthesis.speak(utt);
   setTimeout(()=>{
     const active=document.querySelector('.speak-btn[data-text="'+CSS.escape(text)+'"]');
     if(active) active.classList.add('speaking');
   },50);
 }
+let _iosKeepAliveTimer=null;
 
 function speakCurrent(){
   const filt=getFiltered();
@@ -1431,15 +1467,34 @@ function startSlide(){
   utt.volume=parseFloat(document.getElementById('vol-sl')?.value||1);
 
   let endFired=false;
+  let keepAlive=null;
   function onSpeakEnd(){
     if(endFired||!window._slideRunning) return;
     endFired=true;
+    if(keepAlive){clearInterval(keepAlive);keepAlive=null;}
     afterSpeak();
   }
+  utt.onstart=function(){
+    // iOSバグ対策: 長い文章で読み上げが途中で止まるのを防ぐ
+    if(keepAlive) clearInterval(keepAlive);
+    keepAlive=setInterval(()=>{
+      if(window.speechSynthesis.speaking){
+        window.speechSynthesis.pause();
+        window.speechSynthesis.resume();
+      } else {
+        clearInterval(keepAlive);
+        keepAlive=null;
+      }
+    },5000);
+  };
   utt.onend=onSpeakEnd;
-  // iOSフォールバック（onendが発火しない場合）
-  const fallbackDur=Math.max(w.en.split(' ').length*700+1500, 3000);
-  setTimeout(onSpeakEnd, fallbackDur);
+  utt.onerror=onSpeakEnd;
+  // iOSフォールバック（onendが発火しない場合）: 単語数×実測平均+余裕
+  const rate2=parseFloat(document.getElementById('rate-sl')?.value||1);
+  const wordCount=w.en.trim().split(/\s+/).length;
+  const charCount=w.en.length;
+  const estMs=Math.max((charCount*60+wordCount*200)/rate2+800, 2000);
+  setTimeout(onSpeakEnd, estMs);
   window.speechSynthesis.speak(utt);
 }
 
