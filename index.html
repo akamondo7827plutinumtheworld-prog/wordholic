@@ -1510,6 +1510,12 @@ function updateFlashRangeMax(){
 }
 
 function startSlide(){
+  // 再生中なら停止（トグル）
+  if(window._slideRunning){ stopSlide(); return; }
+  _runSlide();
+}
+
+function _runSlide(){
   if(!window._slideRunning){
     const sb=document.getElementById('slide-start-btn'),st=document.getElementById('slide-stop-btn');
     if(sb)sb.style.display='none'; if(st)st.style.display='';
@@ -1522,7 +1528,15 @@ function startSlide(){
   if(!filt.length){ stopSlide(); return; }
 
   const {from,to}=mode==='flash'?getFlashRange():getSlideRange();
-  if(idx<from||idx>to){ idx=from; updateStats(); if(mode==='flash')renderFlash();else renderSlide(); }
+  if(idx<from||idx>to){
+    idx=from; updateStats();
+    if(mode==='flash')renderFlash();else renderSlide();
+    // render後にボタン表示を再設定
+    const sb2=document.getElementById('slide-start-btn'),st2=document.getElementById('slide-stop-btn');
+    if(sb2)sb2.style.display='none'; if(st2)st2.style.display='';
+    const ssb2=document.getElementById('slide-side-start-btn'),sst2=document.getElementById('slide-side-stop-btn');
+    if(ssb2)ssb2.style.display='none'; if(sst2)sst2.style.display='';
+  }
 
   const w=filt[Math.min(idx,filt.length-1)];
   const speakMode=document.getElementById('speak-mode-sel')?.value||'en';
@@ -1542,8 +1556,14 @@ function startSlide(){
         if(loop){ idx=f; }
         else { stopSlide(); showToast('✅ 指定範囲の再生が終わりました'); return; }
       } else { idx++; }
-      updateStats(); if(mode==='flash')renderFlash();else renderSlide(); saveProgress();
-      slideTimer=setTimeout(function(){ if(window._slideRunning) startSlide(); }, 200);
+      updateStats(); if(mode==='flash')renderFlash();else renderSlide();
+      // render後にボタン表示を再設定
+      const sb3=document.getElementById('slide-start-btn'),st3=document.getElementById('slide-stop-btn');
+      if(sb3)sb3.style.display='none'; if(st3)st3.style.display='';
+      const ssb3=document.getElementById('slide-side-start-btn'),sst3=document.getElementById('slide-side-stop-btn');
+      if(ssb3)ssb3.style.display='none'; if(sst3)sst3.style.display='';
+      saveProgress();
+      slideTimer=setTimeout(function(){ if(window._slideRunning) _runSlide(); }, 200);
     }, shadowMs + slideSpeed*1000);
   }
 
@@ -1584,7 +1604,7 @@ function startSlide(){
     function finish(){ if(done)return; done=true; if(onDone)onDone(); }
     utt.onend=finish;
     utt.onerror=function(e){ console.warn('TTS',lang,e.error); finish(); };
-    setTimeout(finish, Math.max((text.length*300)/spRate, 4000));
+    setTimeout(finish, Math.max((text.length*600)/spRate, 8000));
     window.speechSynthesis.speak(utt);
   }
 
