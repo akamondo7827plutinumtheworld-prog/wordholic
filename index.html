@@ -239,7 +239,9 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
       <label>声：</label>
       <select id="voice-sel" onchange="setVoice()"></select>
       <label>速さ：</label>
+      <button onclick="adjustRate(-0.1)" style="padding:3px 9px;border-radius:6px;border:1.5px solid var(--border);background:var(--card);font-size:14px;cursor:pointer;font-weight:700">−</button>
       <input type="range" id="rate-sl" min="0.5" max="2" step="0.1" value="1" oninput="document.getElementById('rate-v').textContent=parseFloat(this.value).toFixed(1);saveVoiceSettings()">
+      <button onclick="adjustRate(0.1)" style="padding:3px 9px;border-radius:6px;border:1.5px solid var(--border);background:var(--card);font-size:14px;cursor:pointer;font-weight:700">＋</button>
       <span class="voice-val" id="rate-v">1.0</span>
       <label>音量：</label>
       <input type="range" id="vol-sl" min="0" max="1" step="0.1" value="1" oninput="document.getElementById('vol-v').textContent=parseFloat(this.value).toFixed(1);saveVoiceSettings()">
@@ -753,6 +755,7 @@ function loadVoices(){
     'Daniel',          // iOS イギリス
     'Moira',           // iOS アイルランド
     'Ava',             // Windows/Edge
+    'Alex',            // iOS 旧標準
   ];
   if(chosen<0){
     for(const pref of preferredNames){
@@ -760,9 +763,12 @@ function loadVoices(){
       if(chosen>=0) break;
     }
   }
+  // ローカル音声（高品質・オフライン）を優先
   if(chosen<0){
-    // ローカル音声（localServiceUrl が空）を優先（オフラインでも使える）
     chosen=voices.findIndex(v=>v.lang==='en-US'&&v.localService);
+  }
+  if(chosen<0){
+    chosen=voices.findIndex(v=>v.lang.startsWith('en')&&v.localService);
   }
   if(chosen<0){
     chosen=voices.findIndex(v=>v.lang==='en-US');
@@ -799,6 +805,16 @@ setTimeout(loadVoices,3000);
 function setVoice(){
   const sel=document.getElementById('voice-sel');
   if(sel&&voices.length) selectedVoice=voices[+sel.value]||voices[0];
+  saveVoiceSettings();
+}
+
+function adjustRate(delta){
+  const sl=document.getElementById('rate-sl');
+  const val=document.getElementById('rate-v');
+  if(!sl||!val)return;
+  const next=Math.min(2,Math.max(0.5,Math.round((parseFloat(sl.value)+delta)*10)/10));
+  sl.value=next;
+  val.textContent=next.toFixed(1);
   saveVoiceSettings();
 }
 
@@ -1601,10 +1617,16 @@ function _runSlide(){
     utt.rate=spRate;
     utt.volume=vol;
     let done=false;
-    function finish(){ if(done)return; done=true; if(onDone)onDone(); }
+    let fallbackTimer=null;
+    function finish(){
+      if(done)return; done=true;
+      if(fallbackTimer){clearTimeout(fallbackTimer);fallbackTimer=null;}
+      if(onDone)onDone();
+    }
     utt.onend=finish;
     utt.onerror=function(e){ console.warn('TTS',lang,e.error); finish(); };
-    setTimeout(finish, Math.max((text.length*600)/spRate, 8000));
+    // フォールバック：onendが来ない場合のみ発動（文字数×500ms、最低5秒）
+    fallbackTimer=setTimeout(finish, Math.max((text.length*500)/spRate, 5000));
     window.speechSynthesis.speak(utt);
   }
 
