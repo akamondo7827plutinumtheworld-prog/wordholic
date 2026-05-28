@@ -151,7 +151,7 @@ input[type=file]{display:none}
 .bm-dot.mem{background:var(--bm-mem)}
 .card-speak{position:absolute;bottom:12px;right:14px}
 .nav-btns{display:flex;gap:10px;justify-content:center;margin-bottom:10px;flex-wrap:wrap}
-.nav-side-btn{width:64px;min-height:90px;font-size:15px;font-weight:700;line-height:1.6;text-align:center;padding:12px 8px;border-radius:10px;}
+.nav-side-btn{width:64px;min-height:90px;font-size:15px !important;font-weight:700;line-height:1.6;text-align:center;padding:12px 8px;border-radius:10px;}
 
 /* Typing */
 .typing-area{background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:28px;text-align:center;margin-bottom:14px}
@@ -282,13 +282,29 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
     </div>
     <div class="prog-bar"><div class="prog-fill" id="prog"></div></div>
     <div id="mode-flash"></div>
+    <!-- フラッシュ再生範囲指定 -->
+    <div id="flash-range-bar" style="margin-top:10px;background:var(--cream);border:1px solid var(--border);border-radius:10px;padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:600;color:var(--ink)">&#127919; 再生範囲：</span>
+      <label style="font-size:13px;color:var(--muted)">カード番号</label>
+      <input type="number" id="flash-range-from" min="1" value="1" style="width:70px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:'BIZ UDGothic',sans-serif;text-align:center;background:var(--paper);color:var(--ink)" oninput="validateFlashRange();saveProgress()">
+      <span style="font-size:13px;color:var(--muted)">〜</span>
+      <input type="number" id="flash-range-to" min="1" value="" placeholder="最後" style="width:70px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:'BIZ UDGothic',sans-serif;text-align:center;background:var(--paper);color:var(--ink)" oninput="validateFlashRange();saveProgress()">
+      <span id="flash-range-hint" style="font-size:11px;color:var(--muted)"></span>
+      <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;margin-left:4px">
+        <input type="checkbox" id="flash-loop" style="accent-color:var(--accent)" onchange="saveProgress()"> ループ
+      </label>
+    </div>
     <div id="mode-type" style="display:none"></div>
     <div id="mode-slide" style="display:none"><div id="slide-card-wrap"></div>
     <div class="slide-controls">
-      <button class="btn" id="slide-stop-btn" style="display:none" onclick="stopSlide()">⏹ 停止</button>
-      <button class="btn btn-primary" id="slide-start-btn" onclick="startSlide()">▶ 自動再生</button>
+      <span style="font-size:13px;color:var(--muted)">読み上げ：</span>
+      <select id="speak-mode-sel" onchange="saveProgress()" style="font-size:13px;padding:5px 10px;border:1px solid var(--border);border-radius:6px;background:var(--paper);font-family:'BIZ UDGothic',sans-serif;color:var(--ink)">
+        <option value="en">英語のみ</option>
+        <option value="ja_en">日本語→英語</option>
+      </select>
       <span style="font-size:13px;color:var(--muted);margin-left:8px">間隔：</span>
       <select id="speed-sel" onchange="slideSpeed=+this.value; saveProgress(); if(slideTimer){clearTimeout(slideTimer);slideTimer=null;}">
+        <option value="1">最速(1秒)</option>
         <option value="2" selected>速い(2秒)</option>
         <option value="3">普通(3秒)</option>
         <option value="5">ゆっくり(5秒)</option>
@@ -307,6 +323,9 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
       <span id="slide-range-hint" style="font-size:11px;color:var(--muted)"></span>
       <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;margin-left:4px">
         <input type="checkbox" id="slide-loop" style="accent-color:var(--accent)" onchange="saveProgress()"> ループ
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-left:8px">
+        <input type="checkbox" id="slide-shadow" onchange="saveProgress()" style="accent-color:var(--speak)"> シャドーイング
       </label>
     </div>
     </div>
@@ -460,10 +479,11 @@ function applyFbData(key, fbData, fbWords){
     }
     // スライド設定も同期
     if(fbData.slideSettings) applySlideSettingsToDOM(fbData.slideSettings);
+    if(fbData.flashSettings) applyFlashSettingsToDOM(fbData.flashSettings);
     updateStats();
     if(mode==='flash')renderFlash();
     else if(mode==='type')renderType();
-    else if(mode==='slide')renderSlide();
+    else if(mode==='slide'&&!window._slideRunning)renderSlide();
     else if(mode==='list')renderList();
     const d=new Date(fbData.updatedAt);
     const ts=d.getMonth()+1+'/'+d.getDate()+' '+d.getHours()+':'+String(d.getMinutes()).padStart(2,'0');
@@ -525,7 +545,14 @@ function saveProgress(){
     speed: slideSpeed,
     rangeFrom: document.getElementById('slide-range-from')?.value||'1',
     rangeTo: document.getElementById('slide-range-to')?.value||'',
-    loop: document.getElementById('slide-loop')?.checked||false
+    loop: document.getElementById('slide-loop')?.checked||false,
+    speakMode: document.getElementById('speak-mode-sel')?.value||'en',
+    shadowing: document.getElementById('slide-shadow')?.checked||false
+  };
+  const flashSettings={
+    rangeFrom: document.getElementById('flash-range-from')?.value||'1',
+    rangeTo: document.getElementById('flash-range-to')?.value||'',
+    loop: document.getElementById('flash-loop')?.checked||false
   };
   const progressData = {
     idx:getIdx(), idxFlash, idxType, idxSlide, idxByFilter, filter, mode,
@@ -538,6 +565,7 @@ function saveProgress(){
     studyDates,
     voiceSettings,
     slideSettings,
+    flashSettings,
     updatedAt: Date.now()
   };
   try{
@@ -576,6 +604,9 @@ function restoreProgress(key){
       slideSpeed=ss.speed||2;
       // DOM要素はinit後に適用するため一時保存
       window._pendingSlideSettings=ss;
+    }
+    if(d.flashSettings){
+      window._pendingFlashSettings=d.flashSettings;
     }
     return true;
   }catch(e){return false;}
@@ -958,7 +989,7 @@ function loadFile(input){
           localStorage.setItem('wh_lastKey', key);
           localStorage.setItem('wh_dispName_'+key, '📄 '+dispName);
           updateStats();
-          setMode(mode);
+          if(!(mode==="slide"&&window._slideRunning))setMode(mode);
           showToast('📱 Firebaseから進捗を同期しました');
         }).catch(function(){});
       }
@@ -998,7 +1029,7 @@ function loadFile(input){
           localStorage.setItem('wh_lastKey', key);
           localStorage.setItem('wh_dispName_'+key, '📄 '+dispName);
           updateStats();
-          setMode(mode);
+          if(!(mode==="slide"&&window._slideRunning))setMode(mode);
           showToast('📱 Firebaseから進捗を同期しました');
         }).catch(function(){});
       }
@@ -1059,6 +1090,10 @@ function init(restored){
     applySlideSettingsToDOM(window._pendingSlideSettings);
     window._pendingSlideSettings=null;
   }
+  if(window._pendingFlashSettings){
+    applyFlashSettingsToDOM(window._pendingFlashSettings);
+    window._pendingFlashSettings=null;
+  }
   if(restored) showToast('📖 前回の続きから再開しました（'+idx+'番目）');
 }
 
@@ -1073,7 +1108,22 @@ function applySlideSettingsToDOM(ss){
   if(fromEl) fromEl.value=ss.rangeFrom||'1';
   if(toEl) toEl.value=ss.rangeTo||'';
   if(loopEl) loopEl.checked=ss.loop||false;
+  const speakModeEl=document.getElementById('speak-mode-sel');
+  if(speakModeEl&&ss.speakMode) speakModeEl.value=ss.speakMode;
+  const shadowEl=document.getElementById('slide-shadow');
+  if(shadowEl&&ss.shadowing) shadowEl.checked=ss.shadowing;
   validateSlideRange();
+}
+
+function applyFlashSettingsToDOM(fs){
+  if(!fs) return;
+  const fromEl=document.getElementById('flash-range-from');
+  const toEl=document.getElementById('flash-range-to');
+  const loopEl=document.getElementById('flash-loop');
+  if(fromEl) fromEl.value=fs.rangeFrom||'1';
+  if(toEl) toEl.value=fs.rangeTo||'';
+  if(loopEl) loopEl.checked=fs.loop||false;
+  validateFlashRange();
 }
 
 function updateStats(){
@@ -1113,6 +1163,8 @@ function setMode(m){
   ['flash','type','slide','list'].forEach(x=>{
     document.getElementById('mode-'+x).style.display=x===m?'block':'none';
   });
+  const frb=document.getElementById('flash-range-bar');
+  if(frb) frb.style.display=m==='flash'?'flex':'none';
   document.querySelectorAll('.tab').forEach((t,i)=>{
     t.classList.toggle('active',['flash','type','slide','list'][i]===m);
   });
@@ -1161,6 +1213,7 @@ function toggleBM(type,oi){
 function renderFlash(){
   const filt=getFiltered(),el=document.getElementById('mode-flash');
   if(!filt.length){el.innerHTML=`<div class="empty-filter">📭 このフィルターに単語がありません</div>`;return;}
+  updateFlashRangeMax();
   flipped=false;
   const w=filt[Math.min(idx,filt.length-1)],oi=w.orig;
   el.innerHTML=`
@@ -1193,6 +1246,10 @@ function renderFlash(){
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
+      <button id="slide-side-start-btn" style="flex:1;text-align:center;font-size:16px;font-weight:600;color:#fff;cursor:pointer;padding:8px;border-radius:8px;border:1.5px solid var(--accent);background:var(--accent);font-family:'BIZ UDGothic',sans-serif" onclick="startSlide()">▶ 自動再生</button>
+      <button id="slide-side-stop-btn" style="flex:1;text-align:center;font-size:16px;font-weight:600;color:#fff;cursor:pointer;padding:8px;border-radius:8px;border:1.5px solid #e74c3c;background:#e74c3c;display:none;font-family:'BIZ UDGothic',sans-serif" onclick="stopSlide()">⏹ 停止</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
       <div style="flex:1;text-align:center;font-size:16px;font-weight:600;color:var(--accent2);cursor:pointer;padding:8px;border-radius:8px;border:1.5px solid var(--accent2)" onclick="jumpToCard()" title="番号を入力してジャンプ">${Math.min(idx,filt.length-1)+1} / ${filt.length} ✈</div>
       <button style="padding:8px 12px;border-radius:8px;border:1.5px solid var(--accent);background:var(--card);color:var(--accent);font-size:14px;cursor:pointer" onclick="deleteCard(${oi})" title="このカードを削除">🗑️</button>
     </div>
@@ -1358,14 +1415,31 @@ function renderSlide(){
   const w=filt[Math.min(idx,filt.length-1)],oi=w.orig;
   cardWrap.innerHTML=`
     ${bmRowHtml(oi)}
-    <div class="slide-card">
+    <div class="slide-card" style="position:relative;overflow:hidden" title="左クリック→発音練習登録 / 右クリック→記憶登録">
       ${bmDotsHtml(oi)}
       <div class="slide-jp">${w.jp.replace(/\n/g,'<br>')}</div>
       <div class="slide-en">${w.en.replace(/\n/g,"<br>")}</div>
       ${w.ph?`<div style="font-size:28px;color:var(--muted);font-family:'BIZ UDGothic',sans-serif;margin-top:4px;letter-spacing:1px">${w.ph}</div>`:''}
       <div class="slide-speak">${speakBtnHtml(w.en)}</div>
+      <!-- 左右クリックゾーン -->
+      <div style="position:absolute;top:0;left:0;width:50%;height:100%;cursor:pointer;display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px;opacity:0;transition:opacity 0.2s"
+           onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0"
+           onclick="slideRegister(${oi},'speak')"
+           title="発音練習に登録">
+        <span style="background:rgba(41,128,185,0.85);color:#fff;font-size:12px;padding:3px 10px;border-radius:20px;pointer-events:none">✏️ 発音練習</span>
+      </div>
+      <div style="position:absolute;top:0;right:0;width:50%;height:100%;cursor:pointer;display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px;opacity:0;transition:opacity 0.2s"
+           onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0"
+           onclick="slideRegister(${oi},'mem')"
+           title="記憶に登録">
+        <span style="background:rgba(243,156,18,0.85);color:#fff;font-size:12px;padding:3px 10px;border-radius:20px;pointer-events:none">💡 記憶</span>
+      </div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
+      <button id="slide-start-btn" style="flex:1;text-align:center;font-size:16px;font-weight:600;color:#fff;cursor:pointer;padding:8px;border-radius:8px;border:1.5px solid var(--accent);background:var(--accent);font-family:'BIZ UDGothic',sans-serif" onclick="startSlide()">▶ 自動再生</button>
+      <button id="slide-stop-btn" style="flex:1;text-align:center;font-size:16px;font-weight:600;color:#fff;cursor:pointer;padding:8px;border-radius:8px;border:1.5px solid #e74c3c;background:#e74c3c;display:none;font-family:'BIZ UDGothic',sans-serif" onclick="stopSlide()">⏹ 停止</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
       <div style="flex:1;text-align:center;font-size:16px;font-weight:600;color:var(--accent2);cursor:pointer;padding:8px;border-radius:8px;border:1.5px solid var(--accent2)" onclick="jumpToCard()" title="番号を入力してジャンプ">${Math.min(idx,filt.length-1)+1} / ${filt.length} ✈</div>
       <button style="padding:8px 12px;border-radius:8px;border:1.5px solid var(--accent);background:var(--card);color:var(--accent);font-size:14px;cursor:pointer" onclick="deleteCard(${oi})" title="このカードを削除">🗑️</button>
     </div>
@@ -1405,97 +1479,157 @@ function updateSlideRangeMax(){
   validateSlideRange();
 }
 
+function getFlashRange(){
+  const filt=getFiltered();
+  const total=filt.length;
+  if(!total) return {from:0,to:0};
+  const fromEl=document.getElementById('flash-range-from');
+  const toEl=document.getElementById('flash-range-to');
+  let from=parseInt(fromEl?.value||1);
+  let to=toEl?.value===''||toEl?.value===undefined?total:parseInt(toEl.value);
+  if(isNaN(from)||from<1) from=1;
+  if(isNaN(to)||to>total) to=total;
+  if(from>to) from=to;
+  return {from:from-1, to:to-1};
+}
+
+function validateFlashRange(){
+  const hint=document.getElementById('flash-range-hint');
+  const {from,to}=getFlashRange();
+  if(hint) hint.textContent='('+(from+1)+'〜'+(to+1)+'番、計'+(to-from+1)+'枚)';
+}
+
+function updateFlashRangeMax(){
+  const filt=getFiltered();
+  const total=filt.length;
+  const fromEl=document.getElementById('flash-range-from');
+  const toEl=document.getElementById('flash-range-to');
+  if(fromEl) fromEl.max=total;
+  if(toEl){ toEl.max=total; toEl.placeholder='最後('+total+')';}
+  validateFlashRange();
+}
+
 function startSlide(){
-  // 初回呼び出し時だけボタン切り替え
   if(!window._slideRunning){
     const sb=document.getElementById('slide-start-btn'),st=document.getElementById('slide-stop-btn');
-    if(sb)sb.style.display='none';if(st)st.style.display='';
+    if(sb)sb.style.display='none'; if(st)st.style.display='';
+    const ssb=document.getElementById('slide-side-start-btn'),sst=document.getElementById('slide-side-stop-btn');
+    if(ssb)ssb.style.display='none'; if(sst)sst.style.display='';
     window._slideRunning=true;
   }
 
   const filt=getFiltered();
   if(!filt.length){ stopSlide(); return; }
 
-  // 範囲チェック：現在のidxが範囲外なら開始位置に移動
-  const {from,to}=getSlideRange();
-  if(idx<from||idx>to){ idx=from; updateStats(); renderSlide(); }
+  const {from,to}=mode==='flash'?getFlashRange():getSlideRange();
+  if(idx<from||idx>to){ idx=from; updateStats(); if(mode==='flash')renderFlash();else renderSlide(); }
 
   const w=filt[Math.min(idx,filt.length-1)];
+  const speakMode=document.getElementById('speak-mode-sel')?.value||'en';
+  const rate=parseFloat(document.getElementById('rate-sl')?.value||1);
+  const vol=parseFloat(document.getElementById('vol-sl')?.value||1);
 
-  // 読み上げ完了後、slideSpeed秒待って次のカードへ
   function afterSpeak(){
     if(!window._slideRunning) return;
+    const shadowing=document.getElementById('slide-shadow')?.checked||false;
+    // シャドーイングON: 英語読み上げ時間と同じ無音を挟む
+    const shadowMs=shadowing ? (window._lastEnSpeakMs||0) : 0;
     slideTimer=setTimeout(function(){
       if(!window._slideRunning) return;
-      // 次のカードへ進む
-      const {from:f,to:t}=getSlideRange();
-      const loop=document.getElementById('slide-loop')?.checked;
+      const {from:f,to:t}=mode==='flash'?getFlashRange():getSlideRange();
+      const loop=mode==='flash'?document.getElementById('flash-loop')?.checked:document.getElementById('slide-loop')?.checked;
       if(idx+1>t){
-        if(loop){
-          idx=f;
-        } else {
-          stopSlide();
-          showToast('✅ 指定範囲の再生が終わりました');
-          return;
-        }
-      } else {
-        idx=idx+1;
-      }
-      updateStats();
-      renderSlide();
-      saveProgress();
-      // 少し間を置いてから次の読み上げ開始
-      slideTimer=setTimeout(function(){
-        if(window._slideRunning) startSlide();
-      }, 200);
-    }, slideSpeed*1000);
+        if(loop){ idx=f; }
+        else { stopSlide(); showToast('✅ 指定範囲の再生が終わりました'); return; }
+      } else { idx++; }
+      updateStats(); if(mode==='flash')renderFlash();else renderSlide(); saveProgress();
+      slideTimer=setTimeout(function(){ if(window._slideRunning) startSlide(); }, 200);
+    }, shadowMs + slideSpeed*1000);
   }
 
+  // Electron環境（EXE）
   if(window.electronTTS){
-    // コールバックを登録してからspeakを呼ぶ
-    window._slideOnAudioEnd = afterSpeak;
-    speak(w.en);
+    if(speakMode==='ja_en'){
+      // 日本語: Edge TTS ja-JP-NanamiNeural → 完了後に英語
+      const jpRaw=w.jp.replace(/\n/g,' ');
+      const jpText=jpRaw.replace(/^\s*[\d０-９]+[\s.．\-。、）)]+\s*/,'').trim()||jpRaw;
+      const jaRate=Math.max(0.5,rate*0.85);
+      // 日本語完了コールバック
+      window._slideOnAudioEnd=function(){
+        if(!window._slideRunning)return;
+        window._slideOnAudioEnd=null;
+        setTimeout(function(){
+          if(!window._slideRunning)return;
+          // 英語はspeak()経由
+          window._slideOnAudioEnd=afterSpeak;
+          speak(w.en);
+        },150);
+      };
+      window.electronTTS.speak(jpText, jaRate, vol, 'ja-JP-NanamiNeural');
+    } else {
+      window._slideOnAudioEnd=afterSpeak;
+      speak(w.en);
+    }
     return;
   }
 
-  // ブラウザ環境: Web Speech API（スマホ含む）
-  window.speechSynthesis.cancel();
-  const utt=new SpeechSynthesisUtterance(w.en);
-  utt.lang='en-US';
-  if(selectedVoice) utt.voice=selectedVoice;
-  utt.rate=parseFloat(document.getElementById('rate-sl')?.value||1);
-  utt.volume=parseFloat(document.getElementById('vol-sl')?.value||1);
-
-  let endFired=false;
-  let keepAlive=null;
-  function onSpeakEnd(){
-    if(endFired||!window._slideRunning) return;
-    endFired=true;
-    if(keepAlive){clearInterval(keepAlive);keepAlive=null;}
-    afterSpeak();
+  // ブラウザ / Electron WebView 環境: Web Speech API
+  function sayIt(text, lang, voice, spRate, onDone){
+    const utt=new SpeechSynthesisUtterance(text);
+    utt.lang=lang;
+    if(voice) utt.voice=voice;
+    utt.rate=spRate;
+    utt.volume=vol;
+    let done=false;
+    function finish(){ if(done)return; done=true; if(onDone)onDone(); }
+    utt.onend=finish;
+    utt.onerror=function(e){ console.warn('TTS',lang,e.error); finish(); };
+    setTimeout(finish, Math.max((text.length*300)/spRate, 4000));
+    window.speechSynthesis.speak(utt);
   }
-  utt.onstart=function(){
-    // iOSバグ対策: 長い文章で読み上げが途中で止まるのを防ぐ
-    if(keepAlive) clearInterval(keepAlive);
-    keepAlive=setInterval(()=>{
-      if(window.speechSynthesis.speaking){
-        window.speechSynthesis.pause();
-        window.speechSynthesis.resume();
-      } else {
-        clearInterval(keepAlive);
-        keepAlive=null;
-      }
-    },5000);
-  };
-  utt.onend=onSpeakEnd;
-  utt.onerror=onSpeakEnd;
-  // iOSフォールバック（onendが発火しない場合）: 単語数×実測平均+余裕
-  const rate2=parseFloat(document.getElementById('rate-sl')?.value||1);
-  const wordCount=w.en.trim().split(/\s+/).length;
-  const charCount=w.en.length;
-  const estMs=Math.max((charCount*60+wordCount*200)/rate2+800, 2000);
-  setTimeout(onSpeakEnd, estMs);
-  window.speechSynthesis.speak(utt);
+
+  function getJaVoice(){
+    const all=window.speechSynthesis.getVoices();
+    return all.find(v=>v.name.includes('Haruka'))
+        || all.find(v=>v.name.includes('Nanami'))
+        || all.find(v=>v.name.includes('Ichiro'))
+        || all.find(v=>v.name.includes('Ayumi'))
+        || all.find(v=>v.lang==='ja-JP')
+        || all.find(v=>v.lang.startsWith('ja'))
+        || null;
+  }
+
+  window.speechSynthesis.cancel();
+
+  if(speakMode==='ja_en'){
+    const jpRaw=w.jp.replace(/\n/g,' ');
+    const jpText=jpRaw.replace(/^\s*[\d０-９]+[\s.．\-。、）)]+\s*/,'').trim()||jpRaw;
+    sayIt(jpText,'ja-JP',getJaVoice(),Math.max(0.5,rate*0.85),function(){
+      if(!window._slideRunning) return;
+      setTimeout(function(){
+        if(!window._slideRunning) return;
+        sayIt(w.en,'en-US',selectedVoice||null,rate,function(){
+          if(window._slideRunning) afterSpeak();
+        });
+      }, 150);
+    });
+  } else {
+    sayIt(w.en,'en-US',selectedVoice||null,rate,function(){
+      if(window._slideRunning) afterSpeak();
+    });
+  }
+}
+
+function slideRegister(oi, type){
+  if(type==='speak'){
+    const already=pronBM.has(oi);
+    toggleBM('pron', oi);
+    showToast(already ? '発音練習から外しました' : '✏️ 発音練習に登録しました');
+  } else {
+    const already=memBM.has(oi);
+    toggleBM('mem', oi);
+    showToast(already ? '記憶から外しました' : '💡 記憶に登録しました');
+  }
 }
 
 function stopSlide(){
@@ -1504,6 +1638,8 @@ function stopSlide(){
   if(slideTimer){clearTimeout(slideTimer);slideTimer=null;}
   const sb=document.getElementById('slide-start-btn'),st=document.getElementById('slide-stop-btn');
   if(sb)sb.style.display='';if(st)st.style.display='none';
+  const ssb=document.getElementById('slide-side-start-btn'),sst=document.getElementById('slide-side-stop-btn');
+  if(ssb)ssb.style.display='';if(sst)sst.style.display='none';
   if(window.electronTTS){window.electronTTS.stop();return;}
   window.speechSynthesis.cancel();
 }
@@ -1781,12 +1917,19 @@ if(window.electronTTS){
     _audio.onended = function(){
       if(_audioLocked) return; // stop()による誤発火は無視
       console.log('読み上げ完了');
+      // 英語読み上げ時間を記録（シャドーイング用）
+      if(window._enSpeakStart){
+        window._lastEnSpeakMs=Date.now()-window._enSpeakStart;
+        window._enSpeakStart=null;
+      }
       if(typeof window._slideOnAudioEnd === 'function'){
         const cb = window._slideOnAudioEnd;
         window._slideOnAudioEnd = null;
         cb();
       }
     };
+    // 英語読み上げ開始時刻を記録（シャドーイング用）
+    if(window._slideRunning) window._enSpeakStart=Date.now();
     _audio.play().then(function(){
       console.log('再生成功');
     }).catch(function(e){
