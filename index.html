@@ -238,11 +238,16 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
       <span style="font-size:13px;font-weight:600;color:var(--speak)">🔊 読み上げ設定</span>
       <label>声：</label>
       <select id="voice-sel" onchange="setVoice()"></select>
-      <label>速さ：</label>
-      <button onclick="adjustRate(-0.1)" style="padding:3px 9px;border-radius:6px;border:1.5px solid var(--border);background:var(--card);font-size:14px;cursor:pointer;font-weight:700">−</button>
+      <label>速さ EN：</label>
+      <button onclick="adjustRate('en',-0.1)" style="padding:3px 9px;border-radius:6px;border:1.5px solid var(--border);background:var(--card);font-size:14px;cursor:pointer;font-weight:700">−</button>
       <input type="range" id="rate-sl" min="0.5" max="2" step="0.1" value="1" oninput="document.getElementById('rate-v').textContent=parseFloat(this.value).toFixed(1);saveVoiceSettings()">
-      <button onclick="adjustRate(0.1)" style="padding:3px 9px;border-radius:6px;border:1.5px solid var(--border);background:var(--card);font-size:14px;cursor:pointer;font-weight:700">＋</button>
+      <button onclick="adjustRate('en',0.1)" style="padding:3px 9px;border-radius:6px;border:1.5px solid var(--border);background:var(--card);font-size:14px;cursor:pointer;font-weight:700">＋</button>
       <span class="voice-val" id="rate-v">1.0</span>
+      <label>速さ JA：</label>
+      <button onclick="adjustRate('ja',-0.1)" style="padding:3px 9px;border-radius:6px;border:1.5px solid var(--border);background:var(--card);font-size:14px;cursor:pointer;font-weight:700">−</button>
+      <input type="range" id="rate-ja-sl" min="0.5" max="2" step="0.1" value="1" oninput="document.getElementById('rate-ja-v').textContent=parseFloat(this.value).toFixed(1);saveVoiceSettings()">
+      <button onclick="adjustRate('ja',0.1)" style="padding:3px 9px;border-radius:6px;border:1.5px solid var(--border);background:var(--card);font-size:14px;cursor:pointer;font-weight:700">＋</button>
+      <span class="voice-val" id="rate-ja-v">1.0</span>
       <label>音量：</label>
       <input type="range" id="vol-sl" min="0" max="1" step="0.1" value="1" oninput="document.getElementById('vol-v').textContent=parseFloat(this.value).toFixed(1);saveVoiceSettings()">
       <span class="voice-val" id="vol-v">1.0</span>
@@ -779,8 +784,10 @@ function loadVoices(){
   // rate/volも復元
   if(savedSettings){
     const rateSl=document.getElementById('rate-sl');
+    const rateJaSl=document.getElementById('rate-ja-sl');
     const volSl=document.getElementById('vol-sl');
     if(rateSl&&savedSettings.rate){rateSl.value=savedSettings.rate;document.getElementById('rate-v').textContent=parseFloat(savedSettings.rate).toFixed(1);}
+    if(rateJaSl&&savedSettings.rateJa){rateJaSl.value=savedSettings.rateJa;document.getElementById('rate-ja-v').textContent=parseFloat(savedSettings.rateJa).toFixed(1);}
     if(volSl&&savedSettings.vol){volSl.value=savedSettings.vol;document.getElementById('vol-v').textContent=parseFloat(savedSettings.vol).toFixed(1);}
   }
 
@@ -808,9 +815,11 @@ function setVoice(){
   saveVoiceSettings();
 }
 
-function adjustRate(delta){
-  const sl=document.getElementById('rate-sl');
-  const val=document.getElementById('rate-v');
+function adjustRate(lang, delta){
+  const slId=lang==='ja'?'rate-ja-sl':'rate-sl';
+  const vId=lang==='ja'?'rate-ja-v':'rate-v';
+  const sl=document.getElementById(slId);
+  const val=document.getElementById(vId);
   if(!sl||!val)return;
   const next=Math.min(2,Math.max(0.5,Math.round((parseFloat(sl.value)+delta)*10)/10));
   sl.value=next;
@@ -821,12 +830,12 @@ function adjustRate(delta){
 function saveVoiceSettings(){
   const sel=document.getElementById('voice-sel');
   const rate=document.getElementById('rate-sl')?.value||'1';
+  const rateJa=document.getElementById('rate-ja-sl')?.value||'1';
   const vol=document.getElementById('vol-sl')?.value||'1';
-  // Electron環境はsel.valueが声名（en-US-AvaNeural等）、ブラウザはselectedVoice.name
   const voiceName=window.electronTTS
     ? (sel?sel.value:'')
     : (selectedVoice?selectedVoice.name:'');
-  const settings={voiceName, rate, vol};
+  const settings={voiceName, rate, rateJa, vol};
   localStorage.setItem('wh_voice_settings', JSON.stringify(settings));
   saveProgress();
 }
@@ -1092,8 +1101,10 @@ function init(restored){
       if(savedVS){
         if(savedVS.voiceName) sel.value=savedVS.voiceName;
         const rateSl=document.getElementById('rate-sl');
+        const rateJaSl=document.getElementById('rate-ja-sl');
         const volSl=document.getElementById('vol-sl');
         if(rateSl&&savedVS.rate){rateSl.value=savedVS.rate;document.getElementById('rate-v').textContent=parseFloat(savedVS.rate).toFixed(1);}
+        if(rateJaSl&&savedVS.rateJa){rateJaSl.value=savedVS.rateJa;document.getElementById('rate-ja-v').textContent=parseFloat(savedVS.rateJa).toFixed(1);}
         if(volSl&&savedVS.vol){volSl.value=savedVS.vol;document.getElementById('vol-v').textContent=parseFloat(savedVS.vol).toFixed(1);}
       }
     }
@@ -1241,7 +1252,8 @@ function renderFlash(){
             ${bmDotsHtml(oi)}
             <div class="card-label">日本語</div>
             <div class="card-word">${w.jp.replace(/\n/g,'<br>')}</div>
-            <div class="card-hint">クリックしてめくる</div>
+            <div class="card-hint">タップしてめくる</div>
+            <div style="display:flex;justify-content:center;margin-top:10px" onclick="event.stopPropagation()">${speakBtnHtml(w.en)}</div>
           </div>
           <div class="card-face card-back">
             ${bmDotsHtml(oi)}
@@ -1251,7 +1263,7 @@ function renderFlash(){
               <div class="card-phonetic">${w.ph||''}</div>
             </div>
             ${w.note?'<div style="font-size:12px;color:var(--muted);margin-top:8px;text-align:left;padding:6px 12px;line-height:1.6;background:var(--cream);border-radius:8px;max-height:80px;overflow-y:auto;width:100%;box-sizing:border-box">'+w.note.replace(/\n/g,'<br>')+'</div>':''}
-            <div class="card-speak" style="margin-top:8px" onclick="event.stopPropagation()">${speakBtnHtml(w.en)}</div>
+            <div style="display:flex;justify-content:center;margin-top:10px" onclick="event.stopPropagation()">${speakBtnHtml(w.en)}</div>
           </div>
         </div>
       </div>
@@ -1273,6 +1285,14 @@ function renderFlash(){
   autoSpeak();
 }
 
+function flashCardClick(){
+  if(!flipped){
+    flipCard();
+  } else {
+    markKnown(true);
+  }
+}
+
 function flipCard(){
   flipped=!flipped;
   const c=document.getElementById('fc');
@@ -1280,8 +1300,10 @@ function flipCard(){
   if(flipped){
     const w=getFiltered()[Math.min(idx,getFiltered().length-1)];
     if(!w)return;
-    // Electronアプリのみ自動読み上げ（スマホブラウザでは読み上げない）
-    if(window.electronTTS) speak(w.en);
+    const isMobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    // PC（Electronまたはデスクトップブラウザ）のみ自動読み上げ
+    if(window.electronTTS){ speak(w.en); }
+    else if(!isMobile){ speak(w.en); }
   }
   saveProgress();
 }
@@ -1436,15 +1458,15 @@ function renderSlide(){
       <div class="slide-jp">${w.jp.replace(/\n/g,'<br>')}</div>
       <div class="slide-en">${w.en.replace(/\n/g,"<br>")}</div>
       ${w.ph?`<div style="font-size:28px;color:var(--muted);font-family:'BIZ UDGothic',sans-serif;margin-top:4px;letter-spacing:1px">${w.ph}</div>`:''}
-      <div class="slide-speak">${speakBtnHtml(w.en)}</div>
+      <div class="slide-speak" style="position:relative;z-index:10" onclick="event.stopPropagation()">${speakBtnHtml(w.en)}</div>
       <!-- 左右クリックゾーン -->
-      <div style="position:absolute;top:0;left:0;width:50%;height:100%;cursor:pointer;display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px;opacity:0;transition:opacity 0.2s"
+      <div style="position:absolute;top:0;left:0;width:50%;height:100%;cursor:pointer;display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px;opacity:0;transition:opacity 0.2s;z-index:5"
            onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0"
            onclick="slideRegister(${oi},'speak')"
            title="発音練習に登録">
         <span style="background:rgba(41,128,185,0.85);color:#fff;font-size:12px;padding:3px 10px;border-radius:20px;pointer-events:none">✏️ 発音練習</span>
       </div>
-      <div style="position:absolute;top:0;right:0;width:50%;height:100%;cursor:pointer;display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px;opacity:0;transition:opacity 0.2s"
+      <div style="position:absolute;top:0;right:0;width:50%;height:100%;cursor:pointer;display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px;opacity:0;transition:opacity 0.2s;z-index:5"
            onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0"
            onclick="slideRegister(${oi},'mem')"
            title="記憶に登録">
@@ -1557,6 +1579,7 @@ function _runSlide(){
   const w=filt[Math.min(idx,filt.length-1)];
   const speakMode=document.getElementById('speak-mode-sel')?.value||'en';
   const rate=parseFloat(document.getElementById('rate-sl')?.value||1);
+  const rateJa=parseFloat(document.getElementById('rate-ja-sl')?.value||1);
   const vol=parseFloat(document.getElementById('vol-sl')?.value||1);
 
   function afterSpeak(){
@@ -1646,7 +1669,7 @@ function _runSlide(){
   if(speakMode==='ja_en'){
     const jpRaw=w.jp.replace(/\n/g,' ');
     const jpText=jpRaw.replace(/^\s*[\d０-９]+[\s.．\-。、）)]+\s*/,'').trim()||jpRaw;
-    sayIt(jpText,'ja-JP',getJaVoice(),Math.max(0.5,rate*0.85),function(){
+    sayIt(jpText,'ja-JP',getJaVoice(),Math.max(0.5,rateJa),function(){
       if(!window._slideRunning) return;
       setTimeout(function(){
         if(!window._slideRunning) return;
