@@ -1586,7 +1586,11 @@ function _runSlide(){
     if(!window._slideRunning) return;
     const shadowing=document.getElementById('slide-shadow')?.checked||false;
     // シャドーイングON: 英語読み上げ時間と同じ無音を挟む
-    const shadowMs=shadowing ? (window._lastEnSpeakMs||0) : 0;
+    // 長文（20文字超）は+1秒追加
+    const enText=w.en||'';
+    const longBonus=(shadowing && enText.length>20) ? 1000 : 0;
+    const shortAdj=(shadowing && enText.length<=20) ? -500 : 0;
+    const shadowMs=shadowing ? Math.max(0, (window._lastEnSpeakMs||0) + longBonus + shortAdj) : 0;
     slideTimer=setTimeout(function(){
       if(!window._slideRunning) return;
       const {from:f,to:t}=mode==='flash'?getFlashRange():getSlideRange();
@@ -1633,7 +1637,7 @@ function _runSlide(){
   }
 
   // ブラウザ / Electron WebView 環境: Web Speech API
-  function sayIt(text, lang, voice, spRate, onDone){
+  function sayIt(text, lang, voice, spRate, onDone, trackForShadowing){
     const utt=new SpeechSynthesisUtterance(text);
     utt.lang=lang;
     if(voice) utt.voice=voice;
@@ -1641,9 +1645,16 @@ function _runSlide(){
     utt.volume=vol;
     let done=false;
     let fallbackTimer=null;
+    // シャドーイング用：英語読み上げ開始時刻を記録
+    if(trackForShadowing && window._slideRunning) window._enSpeakStart=Date.now();
     function finish(){
       if(done)return; done=true;
       if(fallbackTimer){clearTimeout(fallbackTimer);fallbackTimer=null;}
+      // シャドーイング用：英語読み上げ終了時刻を記録
+      if(trackForShadowing && window._enSpeakStart){
+        window._lastEnSpeakMs=Date.now()-window._enSpeakStart;
+        window._enSpeakStart=null;
+      }
       if(onDone)onDone();
     }
     utt.onend=finish;
@@ -1675,13 +1686,13 @@ function _runSlide(){
         if(!window._slideRunning) return;
         sayIt(w.en,'en-US',selectedVoice||null,rate,function(){
           if(window._slideRunning) afterSpeak();
-        });
+        }, true);
       }, 150);
     });
   } else {
     sayIt(w.en,'en-US',selectedVoice||null,rate,function(){
       if(window._slideRunning) afterSpeak();
-    });
+    }, true);
   }
 }
 
