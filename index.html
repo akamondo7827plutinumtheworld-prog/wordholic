@@ -228,7 +228,9 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
       <button class="btn" onclick="showStats()">📊 記録</button>
       <button class="btn" onclick="confirmReset()" title="進捗をリセット">🔄 リセット</button>
       <button class="btn" id="sync-btn" onclick="manualSync()" title="Firebaseから進捗を同期">☁️ 同期</button>
-
+      <button class="btn" onclick="exportBackup()" title="セーブデータをJSONで書き出す" style="background:var(--accent2);color:#fff;border-color:var(--accent2)">📤 バックアップ</button>
+      <label class="btn" style="cursor:pointer;background:#27ae60;color:#fff;border-color:#27ae60" title="JSONバックアップを読み込む" for="backup-input">📥 復元</label>
+      <input type="file" id="backup-input" accept=".json" style="display:none" onchange="importBackup(this)">
     </div>
   </div>
 
@@ -541,6 +543,48 @@ function manualSync(){
     showToast('❌ 同期失敗: '+(e.message||e));
   });
 }
+
+// ── バックアップ書き出し・復元 ──────────────────────────────
+function exportBackup(){
+  // localStorageのwh_で始まる全キーを収集
+  const data={};
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    if(k&&k.startsWith('wh_')) data[k]=localStorage.getItem(k);
+  }
+  data['__backup_date']=new Date().toISOString();
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  const dateStr=new Date().toISOString().slice(0,10);
+  a.href=url; a.download='wordholic_backup_'+dateStr+'.json';
+  a.click(); URL.revokeObjectURL(url);
+  showToast('✅ バックアップを書き出しました');
+}
+
+function importBackup(input){
+  const file=input.files[0]; if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const data=JSON.parse(e.target.result);
+      if(!Object.keys(data).some(k=>k.startsWith('wh_'))){
+        showToast('❌ 有効なバックアップファイルではありません'); return;
+      }
+      if(!confirm('現在のセーブデータを上書きして復元しますか？')) return;
+      for(const[k,v] of Object.entries(data)){
+        if(k.startsWith('wh_')) localStorage.setItem(k,v);
+      }
+      showToast('✅ 復元しました。ページをリロードします...');
+      setTimeout(()=>location.reload(), 1500);
+    }catch(err){
+      showToast('❌ 読み込みに失敗しました: '+err.message);
+    }
+  };
+  reader.readAsText(file);
+  input.value=''; // 同じファイルを再度選べるようにリセット
+}
+
 
 // ── 進捗保存・復元 ──────────────────────────────────────
 function saveProgress(){
@@ -1273,10 +1317,6 @@ function renderFlash(){
         <button class="btn nav-side-btn" onclick="navigate(1)">次へ<br>▼</button>
       </div>
     </div>
-    <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
-      <button id="slide-side-start-btn" style="flex:1;text-align:center;font-size:16px;font-weight:600;color:#fff;cursor:pointer;padding:8px;border-radius:8px;border:1.5px solid var(--accent);background:var(--accent);font-family:'BIZ UDGothic',sans-serif" onclick="startSlide()">▶ 自動再生</button>
-      <button id="slide-side-stop-btn" style="flex:1;text-align:center;font-size:16px;font-weight:600;color:#fff;cursor:pointer;padding:8px;border-radius:8px;border:1.5px solid #e74c3c;background:#e74c3c;display:none;font-family:'BIZ UDGothic',sans-serif" onclick="stopSlide()">⏹ 停止</button>
-    </div>
     <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
       <div style="flex:1;text-align:center;font-size:16px;font-weight:600;color:var(--accent2);cursor:pointer;padding:8px;border-radius:8px;border:1.5px solid var(--accent2)" onclick="jumpToCard()" title="番号を入力してジャンプ">${Math.min(idx,filt.length-1)+1} / ${filt.length} ✈</div>
       <button style="padding:8px 12px;border-radius:8px;border:1.5px solid var(--accent);background:var(--card);color:var(--accent);font-size:14px;cursor:pointer" onclick="deleteCard(${oi})" title="このカードを削除">🗑️</button>
@@ -1473,7 +1513,11 @@ function renderSlide(){
         <span style="background:rgba(243,156,18,0.85);color:#fff;font-size:12px;padding:3px 10px;border-radius:20px;pointer-events:none">💡 記憶</span>
       </div>
     </div>
-    <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
+    <div style="display:flex;gap:6px;margin-top:10px">
+      <button style="flex:1;padding:14px 0;font-size:20px;font-weight:700;border-radius:10px;border:1.5px solid var(--border);background:var(--card);color:var(--ink);cursor:pointer;font-family:'BIZ UDGothic',sans-serif" onclick="if(window._slideRunning)stopSlide();navigate(-1)">◀ 前へ</button>
+      <button style="flex:1;padding:14px 0;font-size:20px;font-weight:700;border-radius:10px;border:1.5px solid var(--border);background:var(--card);color:var(--ink);cursor:pointer;font-family:'BIZ UDGothic',sans-serif" onclick="if(window._slideRunning)stopSlide();navigate(1)">次へ ▶</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
       <button id="slide-start-btn" style="flex:1;text-align:center;font-size:16px;font-weight:600;color:#fff;cursor:pointer;padding:8px;border-radius:8px;border:1.5px solid var(--accent);background:var(--accent);font-family:'BIZ UDGothic',sans-serif" onclick="startSlide()">▶ 自動再生</button>
       <button id="slide-stop-btn" style="flex:1;text-align:center;font-size:16px;font-weight:600;color:#fff;cursor:pointer;padding:8px;border-radius:8px;border:1.5px solid #e74c3c;background:#e74c3c;display:none;font-family:'BIZ UDGothic',sans-serif" onclick="stopSlide()">⏹ 停止</button>
     </div>
