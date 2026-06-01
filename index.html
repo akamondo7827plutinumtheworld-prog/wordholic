@@ -419,6 +419,7 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
         <button onclick="srPlus(400)" style="padding:7px 14px;border-radius:20px;border:1.5px solid var(--bm-pron);background:var(--card);color:var(--bm-pron);font-size:13px;cursor:pointer;font-family:'BIZ UDGothic',sans-serif">＋400</button>
         <button onclick="srPlus(600)" style="padding:7px 14px;border-radius:20px;border:1.5px solid var(--bm-pron);background:var(--card);color:var(--bm-pron);font-size:13px;cursor:pointer;font-family:'BIZ UDGothic',sans-serif">＋600</button>
         <button onclick="srPlus(800)" style="padding:7px 14px;border-radius:20px;border:1.5px solid var(--bm-pron);background:var(--card);color:var(--bm-pron);font-size:13px;cursor:pointer;font-family:'BIZ UDGothic',sans-serif">＋800</button>
+        <button onclick="srPlusLast()" style="padding:7px 14px;border-radius:20px;border:1.5px solid var(--speak);background:var(--card);color:var(--speak);font-size:13px;cursor:pointer;font-family:'BIZ UDGothic',sans-serif;font-weight:600">ラストまで</button>
       </div>
     </div>
     <!-- 手入力 -->
@@ -1865,6 +1866,16 @@ function srPlus(n){
   const newTo=Math.min(curTo+n, total);
   if(sfEl) sfEl.value=newFrom;
   if(stEl) stEl.value=newTo;
+  srUpdatePreview();
+}
+
+function srPlusLast(){
+  const filt=getFiltered();
+  const total=filt.length;
+  const stEl=document.getElementById('sr-to');
+  const sfEl=document.getElementById('sr-from');
+  // 終了を最後のカードに設定（開始はそのまま）
+  if(stEl) stEl.value=total;
   srUpdatePreview();
 }
 
