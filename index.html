@@ -208,6 +208,7 @@ input[type=file]{display:none}
   .typing-input{font-size:15px}
   .slide-jp{font-size:20px}
   .slide-en{font-size:22px}
+  .slide-nav-row{display:none!important}
   .search-input{font-size:13px}
   #search-input{font-size:13px}
 }
@@ -322,19 +323,23 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
       <button class="btn" style="margin-left:8px" onclick="navigate(-1)">←</button>
       <button class="btn" onclick="navigate(1)">→</button>
     </div>
-    <!-- 再生範囲指定 -->
-    <div id="slide-range-bar" style="margin-top:10px;background:var(--cream);border:1px solid var(--border);border-radius:10px;padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      <span style="font-size:13px;font-weight:600;color:var(--ink)">🎯 再生範囲：</span>
-      <label style="font-size:13px;color:var(--muted)">カード番号</label>
-      <input type="number" id="slide-range-from" min="1" value="1" style="width:70px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:'BIZ UDGothic',sans-serif;text-align:center;background:var(--paper);color:var(--ink)" oninput="validateSlideRange();saveProgress()">
-      <span style="font-size:13px;color:var(--muted)">〜</span>
-      <input type="number" id="slide-range-to" min="1" value="" placeholder="最後" style="width:70px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:'BIZ UDGothic',sans-serif;text-align:center;background:var(--paper);color:var(--ink)" oninput="validateSlideRange();saveProgress()">
-      <span id="slide-range-hint" style="font-size:11px;color:var(--muted)"></span>
+    <!-- 再生範囲指定（非表示：ポップアップで管理） -->
+    <div id="slide-range-bar" style="display:none">
+      <input type="number" id="slide-range-from" min="1" value="1">
+      <input type="number" id="slide-range-to" min="1" value="" placeholder="最後">
+      <span id="slide-range-hint"></span>
+      <input type="checkbox" id="slide-loop">
+      <input type="checkbox" id="slide-shadow">
+    </div>
+    <!-- 再生範囲ボタン -->
+    <div id="slide-range-vis-bar" style="margin-top:10px;background:var(--cream);border:1px solid var(--border);border-radius:10px;padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <button onclick="showSlideRangePopup()" style="padding:8px 18px;border-radius:20px;border:1.5px solid var(--accent2);background:var(--card);color:var(--accent2);font-size:13px;cursor:pointer;font-family:'BIZ UDGothic',sans-serif;font-weight:600">🎯 再生範囲を設定</button>
+      <span id="slide-range-display" style="font-size:13px;color:var(--muted)">全カード</span>
       <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;margin-left:4px">
-        <input type="checkbox" id="slide-loop" style="accent-color:var(--accent)" onchange="saveProgress()"> ループ
+        <input type="checkbox" id="slide-loop-vis" style="accent-color:var(--accent)" onchange="document.getElementById('slide-loop').checked=this.checked;saveProgress()"> ループ
       </label>
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-left:8px">
-        <input type="checkbox" id="slide-shadow" onchange="saveProgress()" style="accent-color:var(--speak)"> シャドーイング
+        <input type="checkbox" id="slide-shadow-vis" onchange="document.getElementById('slide-shadow').checked=this.checked;saveProgress()" style="accent-color:var(--speak)"> シャドーイング
       </label>
     </div>
     </div>
@@ -388,6 +393,53 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
     <div style="display:flex;gap:10px">
       <button onclick="document.getElementById('wh-addcard-modal').style.display='none'" style="flex:1;padding:10px;border-radius:8px;border:1.5px solid var(--border);background:var(--paper);cursor:pointer;font-family:'BIZ UDGothic',sans-serif">キャンセル</button>
       <button onclick="doAddCard()" style="flex:1;padding:10px;border-radius:8px;border:none;background:var(--accent);color:#fff;cursor:pointer;font-family:'BIZ UDGothic',sans-serif;font-weight:600">追加</button>
+    </div>
+  </div>
+</div>
+
+<!-- スライド再生範囲設定ポップアップ -->
+<div id="wh-slide-range-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:10000;align-items:center;justify-content:center">
+  <div style="background:var(--card);border-radius:14px;padding:28px;max-width:380px;width:92%;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
+    <div style="font-size:16px;font-weight:700;margin-bottom:18px;color:var(--ink)">🎯 再生範囲の設定</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px" id="sr-total-hint"></div>
+    <!-- クイック選択ボタン -->
+    <div style="margin-bottom:14px">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px;letter-spacing:1px">クイック選択</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="srQuick(1,400)" style="padding:7px 14px;border-radius:20px;border:1.5px solid var(--accent2);background:var(--card);color:var(--accent2);font-size:13px;cursor:pointer;font-family:'BIZ UDGothic',sans-serif">1〜400</button>
+        <button onclick="srQuick(1,600)" style="padding:7px 14px;border-radius:20px;border:1.5px solid var(--accent2);background:var(--card);color:var(--accent2);font-size:13px;cursor:pointer;font-family:'BIZ UDGothic',sans-serif">1〜600</button>
+        <button onclick="srQuick(1,800)" style="padding:7px 14px;border-radius:20px;border:1.5px solid var(--accent2);background:var(--card);color:var(--accent2);font-size:13px;cursor:pointer;font-family:'BIZ UDGothic',sans-serif">1〜800</button>
+        <button onclick="srQuick(1,null)" style="padding:7px 14px;border-radius:20px;border:1.5px solid var(--ink);background:var(--cream);color:var(--ink);font-size:13px;cursor:pointer;font-family:'BIZ UDGothic',sans-serif">全カード</button>
+      </div>
+    </div>
+    <!-- +400 / +600 / +800 ボタン -->
+    <div style="margin-bottom:14px">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px;letter-spacing:1px">現在の開始番号から</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="srPlus(400)" style="padding:7px 14px;border-radius:20px;border:1.5px solid var(--bm-pron);background:var(--card);color:var(--bm-pron);font-size:13px;cursor:pointer;font-family:'BIZ UDGothic',sans-serif">＋400</button>
+        <button onclick="srPlus(600)" style="padding:7px 14px;border-radius:20px;border:1.5px solid var(--bm-pron);background:var(--card);color:var(--bm-pron);font-size:13px;cursor:pointer;font-family:'BIZ UDGothic',sans-serif">＋600</button>
+        <button onclick="srPlus(800)" style="padding:7px 14px;border-radius:20px;border:1.5px solid var(--bm-pron);background:var(--card);color:var(--bm-pron);font-size:13px;cursor:pointer;font-family:'BIZ UDGothic',sans-serif">＋800</button>
+      </div>
+    </div>
+    <!-- 手入力 -->
+    <div style="margin-bottom:18px">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px;letter-spacing:1px">手入力</div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+          <span style="font-size:11px;color:var(--muted)">開始</span>
+          <input id="sr-from" type="number" min="1" placeholder="1" style="width:100px;padding:8px;border:2px solid var(--border);border-radius:8px;font-size:16px;text-align:center;font-family:'BIZ UDGothic',sans-serif;background:var(--paper);color:var(--ink);outline:none" oninput="srFromChanged()">
+        </div>
+        <span style="font-size:18px;color:var(--muted);margin-top:18px">〜</span>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+          <span style="font-size:11px;color:var(--muted)">終了</span>
+          <input id="sr-to" type="number" min="1" placeholder="最後" style="width:100px;padding:8px;border:2px solid var(--border);border-radius:8px;font-size:16px;text-align:center;font-family:'BIZ UDGothic',sans-serif;background:var(--paper);color:var(--ink);outline:none" oninput="srUpdatePreview()">
+        </div>
+        <span id="sr-preview" style="font-size:12px;color:var(--speak);font-weight:600;margin-top:18px"></span>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button onclick="document.getElementById('wh-slide-range-modal').style.display='none'" style="flex:1;padding:10px;border-radius:8px;border:1.5px solid var(--border);background:var(--paper);cursor:pointer;font-family:'BIZ UDGothic',sans-serif">キャンセル</button>
+      <button onclick="applySlideRange()" style="flex:1;padding:10px;border-radius:8px;border:none;background:var(--accent2);color:#fff;cursor:pointer;font-family:'BIZ UDGothic',sans-serif;font-weight:600">適用</button>
     </div>
   </div>
 </div>
@@ -956,7 +1008,7 @@ function speakCurrent(){
 function speakBtnHtml(text){
   const esc=text.replace(/"/g,'&quot;');
   const escSQ=text.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-  return `<button class="speak-btn" data-text="${esc}" onclick="event.stopPropagation();speak('${escSQ}')">
+  return `<button class="speak-btn" data-text="${esc}" onclick="event.stopPropagation();if(window._slideRunning)stopSlide();speak('${escSQ}')">
     <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
     読み上げる
   </button>`;
@@ -1183,7 +1235,13 @@ function applySlideSettingsToDOM(ss){
   if(speakModeEl&&ss.speakMode) speakModeEl.value=ss.speakMode;
   const shadowEl=document.getElementById('slide-shadow');
   if(shadowEl&&ss.shadowing) shadowEl.checked=ss.shadowing;
+  // vis チェックボックスも同期
+  const loopVis=document.getElementById('slide-loop-vis');
+  if(loopVis) loopVis.checked=ss.loop||false;
+  const shadowVis=document.getElementById('slide-shadow-vis');
+  if(shadowVis) shadowVis.checked=ss.shadowing||false;
   validateSlideRange();
+  updateSlideRangeDisplay();
 }
 
 function applyFlashSettingsToDOM(fs){
@@ -1513,7 +1571,7 @@ function renderSlide(){
         <span style="background:rgba(243,156,18,0.85);color:#fff;font-size:12px;padding:3px 10px;border-radius:20px;pointer-events:none">💡 記憶</span>
       </div>
     </div>
-    <div style="display:flex;gap:6px;margin-top:10px">
+    <div class="slide-nav-row" style="display:flex;gap:6px;margin-top:10px">
       <button style="flex:1;padding:14px 0;font-size:20px;font-weight:700;border-radius:10px;border:1.5px solid var(--border);background:var(--card);color:var(--ink);cursor:pointer;font-family:'BIZ UDGothic',sans-serif" onclick="if(window._slideRunning)stopSlide();navigate(-1)">◀ 前へ</button>
       <button style="flex:1;padding:14px 0;font-size:20px;font-weight:700;border-radius:10px;border:1.5px solid var(--border);background:var(--card);color:var(--ink);cursor:pointer;font-family:'BIZ UDGothic',sans-serif" onclick="if(window._slideRunning)stopSlide();navigate(1)">次へ ▶</button>
     </div>
@@ -1559,6 +1617,7 @@ function updateSlideRangeMax(){
   if(fromEl) fromEl.max=total;
   if(toEl){ toEl.max=total; toEl.placeholder='最後('+total+')';}
   validateSlideRange();
+  updateSlideRangeDisplay();
 }
 
 function getFlashRange(){
@@ -1764,6 +1823,117 @@ function stopSlide(){
   window.speechSynthesis.cancel();
 }
 
+function showSlideRangePopup(){
+  const filt=getFiltered();
+  const total=filt.length;
+  const fromEl=document.getElementById('slide-range-from');
+  const toEl=document.getElementById('slide-range-to');
+  const curFrom=parseInt(fromEl?.value||1)||1;
+  const curTo=toEl?.value===''?'':parseInt(toEl?.value||total);
+  // ポップアップに現在値をセット
+  const sfEl=document.getElementById('sr-from');
+  const stEl=document.getElementById('sr-to');
+  if(sfEl) sfEl.value=curFrom;
+  if(stEl) stEl.value=curTo===''?'':curTo;
+  const hint=document.getElementById('sr-total-hint');
+  if(hint) hint.textContent='全カード数：'+total+'枚';
+  srUpdatePreview();
+  const modal=document.getElementById('wh-slide-range-modal');
+  modal.style.display='flex';
+  modal.onclick=function(e){if(e.target===modal)modal.style.display='none';};
+  setTimeout(()=>{const i=document.getElementById('sr-from');if(i)i.focus();},50);
+}
+
+function srQuick(from, to){
+  const filt=getFiltered();
+  const total=filt.length;
+  const sfEl=document.getElementById('sr-from');
+  const stEl=document.getElementById('sr-to');
+  if(sfEl) sfEl.value=from;
+  if(stEl) stEl.value=to===null?'':Math.min(to,total);
+  srUpdatePreview();
+}
+
+function srPlus(n){
+  const filt=getFiltered();
+  const total=filt.length;
+  const sfEl=document.getElementById('sr-from');
+  const stEl=document.getElementById('sr-to');
+  // 現在の終了番号の次を新しい開始にする
+  const curTo=stEl?.value===''?total:parseInt(stEl?.value||total)||total;
+  const newFrom=Math.min(curTo+1, total);
+  const newTo=Math.min(curTo+n, total);
+  if(sfEl) sfEl.value=newFrom;
+  if(stEl) stEl.value=newTo;
+  srUpdatePreview();
+}
+
+function srFromChanged(){
+  // 開始番号を入力したら終了欄をフォーカスしやすくする（何もしない、Preview更新のみ）
+  srUpdatePreview();
+}
+
+function srUpdatePreview(){
+  const filt=getFiltered();
+  const total=filt.length;
+  const sfEl=document.getElementById('sr-from');
+  const stEl=document.getElementById('sr-to');
+  const prev=document.getElementById('sr-preview');
+  if(!sfEl||!stEl||!prev) return;
+  let from=parseInt(sfEl.value)||1;
+  let to=stEl.value===''?total:parseInt(stEl.value)||total;
+  if(from<1)from=1; if(from>total)from=total;
+  if(to<from)to=from; if(to>total)to=total;
+  prev.textContent='→ '+from+'〜'+to+'番（計'+(to-from+1)+'枚）';
+}
+
+function applySlideRange(){
+  const filt=getFiltered();
+  const total=filt.length;
+  const sfEl=document.getElementById('sr-from');
+  const stEl=document.getElementById('sr-to');
+  let from=parseInt(sfEl?.value)||1;
+  let to=stEl?.value===''?'':parseInt(stEl?.value)||total;
+  if(from<1)from=1; if(from>total)from=total;
+  if(to!==''&&to<from)to=from; if(to!==''&&to>total)to=total;
+  // 隠しinputに反映
+  const fromEl=document.getElementById('slide-range-from');
+  const toEl=document.getElementById('slide-range-to');
+  if(fromEl) fromEl.value=from;
+  if(toEl) toEl.value=to===''?'':to;
+  // 表示更新
+  updateSlideRangeDisplay();
+  validateSlideRange();
+  saveProgress();
+  document.getElementById('wh-slide-range-modal').style.display='none';
+  // シャドーイングONなら開始番号へ自動ジャンプ
+  const isShadowing=document.getElementById('slide-shadow')?.checked||false;
+  if(isShadowing){
+    idx=from-1; // 0-indexed
+    updateStats();
+    renderSlide();
+    showToast('🎯 '+from+'番にジャンプしました（シャドーイング）');
+  } else {
+    showToast('🎯 再生範囲を設定しました：'+from+'〜'+(to===''?total:to)+'番');
+  }
+}
+
+function updateSlideRangeDisplay(){
+  const filt=getFiltered();
+  const total=filt.length;
+  const fromEl=document.getElementById('slide-range-from');
+  const toEl=document.getElementById('slide-range-to');
+  const disp=document.getElementById('slide-range-display');
+  if(!disp) return;
+  const from=parseInt(fromEl?.value||1)||1;
+  const to=toEl?.value===''?total:parseInt(toEl?.value)||total;
+  if(from===1 && (toEl?.value===''||to===total)){
+    disp.textContent='全カード（'+total+'枚）';
+  } else {
+    disp.textContent=from+'〜'+to+'番（計'+(to-from+1)+'枚）';
+  }
+}
+
 function jumpToCard(){
   const filt=getFiltered();
   let el=document.getElementById('wh-jump-modal');
@@ -1798,6 +1968,8 @@ function doJump(){
 }
 
 function showEditCardByOrig(oi){
+  // スライド自動再生中なら停止
+  if(window._slideRunning) stopSlide();
   const w=words[oi];
   if(!w) return;
   var jp=document.getElementById('edit-jp');
@@ -1813,6 +1985,8 @@ function showEditCardByOrig(oi){
 }
 
 function showEditCard(){
+  // スライド自動再生中なら停止
+  if(window._slideRunning) stopSlide();
   const filt=getFiltered();
   if(!filt.length) return;
   const w=filt[Math.min(getIdx(),filt.length-1)];
