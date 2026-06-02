@@ -209,6 +209,7 @@ input[type=file]{display:none}
   .slide-jp{font-size:20px}
   .slide-en{font-size:22px}
   .slide-nav-row{display:none!important}
+  .slide-ctrl-arrow{display:none!important}
   .search-input{font-size:13px}
   #search-input{font-size:13px}
 }
@@ -320,8 +321,8 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
         <option value="5">ゆっくり(5秒)</option>
         <option value="8">超ゆっくり(8秒)</option>
       </select>
-      <button class="btn" style="margin-left:8px" onclick="navigate(-1)">←</button>
-      <button class="btn" onclick="navigate(1)">→</button>
+      <button class="btn slide-ctrl-arrow" style="margin-left:8px" onclick="navigate(-1)">←</button>
+      <button class="btn slide-ctrl-arrow" onclick="navigate(1)">→</button>
     </div>
     <!-- 再生範囲指定（非表示：ポップアップで管理） -->
     <div id="slide-range-bar" style="display:none">
@@ -1410,6 +1411,7 @@ function flipCard(){
 function navigate(d){
   const filt=getFiltered();
   if(!filt.length)return;
+  if(window._slideRunning) stopSlide();
   idx=((idx+d)+filt.length)%filt.length;
   updateStats();
   if(mode==='flash')renderFlash();
@@ -1874,7 +1876,10 @@ function srPlusLast(){
   const total=filt.length;
   const stEl=document.getElementById('sr-to');
   const sfEl=document.getElementById('sr-from');
-  // 終了を最後のカードに設定（開始はそのまま）
+  // 現在の終了番号+1を新しい開始に、ラストを終了に
+  const curTo=stEl?.value===''?total:parseInt(stEl?.value||total)||total;
+  const newFrom=Math.min(curTo+1, total);
+  if(sfEl) sfEl.value=newFrom;
   if(stEl) stEl.value=total;
   srUpdatePreview();
 }
