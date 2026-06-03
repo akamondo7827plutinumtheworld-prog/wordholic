@@ -305,43 +305,45 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
       </label>
     </div>
     <div id="mode-type" style="display:none"></div>
-    <div id="mode-slide" style="display:none"><div id="slide-card-wrap"></div>
-    <div class="slide-controls">
-      <span style="font-size:13px;color:var(--muted)">読み上げ：</span>
-      <select id="speak-mode-sel" onchange="saveProgress()" style="font-size:13px;padding:5px 10px;border:1px solid var(--border);border-radius:6px;background:var(--paper);font-family:'BIZ UDGothic',sans-serif;color:var(--ink)">
-        <option value="en">英語のみ</option>
-        <option value="ja_en">日本語→英語</option>
-      </select>
-      <span style="font-size:13px;color:var(--muted);margin-left:8px">間隔：</span>
-      <select id="speed-sel" onchange="slideSpeed=+this.value; saveProgress(); if(slideTimer){clearTimeout(slideTimer);slideTimer=null;}">
-        <option value="1">最速(1秒)</option>
-        <option value="2" selected>速い(2秒)</option>
-        <option value="3">普通(3秒)</option>
-        <option value="5">ゆっくり(5秒)</option>
-        <option value="8">超ゆっくり(8秒)</option>
-      </select>
-      <button class="btn slide-ctrl-arrow" style="margin-left:8px" onclick="navigate(-1)">←</button>
-      <button class="btn slide-ctrl-arrow" onclick="navigate(1)">→</button>
-    </div>
-    <!-- 再生範囲指定（非表示：ポップアップで管理） -->
-    <div id="slide-range-bar" style="display:none">
-      <input type="number" id="slide-range-from" min="1" value="1">
-      <input type="number" id="slide-range-to" min="1" value="" placeholder="最後">
-      <span id="slide-range-hint"></span>
-      <input type="checkbox" id="slide-loop">
-      <input type="checkbox" id="slide-shadow">
-    </div>
-    <!-- 再生範囲ボタン -->
-    <div id="slide-range-vis-bar" style="margin-top:10px;background:var(--cream);border:1px solid var(--border);border-radius:10px;padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      <button onclick="showSlideRangePopup()" style="padding:8px 18px;border-radius:20px;border:1.5px solid var(--accent2);background:var(--card);color:var(--accent2);font-size:13px;cursor:pointer;font-family:'BIZ UDGothic',sans-serif;font-weight:600">🎯 再生範囲を設定</button>
-      <span id="slide-range-display" style="font-size:13px;color:var(--muted)">全カード</span>
-      <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;margin-left:4px">
-        <input type="checkbox" id="slide-loop-vis" style="accent-color:var(--accent)" onchange="document.getElementById('slide-loop').checked=this.checked;saveProgress()"> ループ
-      </label>
-      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-left:8px">
-        <input type="checkbox" id="slide-shadow-vis" onchange="document.getElementById('slide-shadow').checked=this.checked;saveProgress()" style="accent-color:var(--speak)"> シャドーイング
-      </label>
-    </div>
+    <div id="mode-slide" style="display:none"><div id="slide-card-wrap"></div></div>
+    <!-- 再生範囲コントロール（mode-slideの外・重なり防止） -->
+    <div id="slide-controls-wrap" style="display:none">
+      <div class="slide-controls">
+        <span style="font-size:13px;color:var(--muted)">読み上げ：</span>
+        <select id="speak-mode-sel" onchange="saveProgress()" style="font-size:13px;padding:5px 10px;border:1px solid var(--border);border-radius:6px;background:var(--paper);font-family:'BIZ UDGothic',sans-serif;color:var(--ink)">
+          <option value="en">英語のみ</option>
+          <option value="ja_en">日本語→英語</option>
+        </select>
+        <span style="font-size:13px;color:var(--muted);margin-left:8px">間隔：</span>
+        <select id="speed-sel" onchange="slideSpeed=+this.value; saveProgress(); if(slideTimer){clearTimeout(slideTimer);slideTimer=null;}">
+          <option value="1">最速(1秒)</option>
+          <option value="2" selected>速い(2秒)</option>
+          <option value="3">普通(3秒)</option>
+          <option value="5">ゆっくり(5秒)</option>
+          <option value="8">超ゆっくり(8秒)</option>
+        </select>
+        <button class="btn slide-ctrl-arrow" style="margin-left:8px" onclick="navigate(-1)">←</button>
+        <button class="btn slide-ctrl-arrow" onclick="navigate(1)">→</button>
+      </div>
+      <!-- 再生範囲指定（非表示：ポップアップで管理） -->
+      <div id="slide-range-bar" style="display:none">
+        <input type="number" id="slide-range-from" min="1" value="1">
+        <input type="number" id="slide-range-to" min="1" value="" placeholder="最後">
+        <span id="slide-range-hint"></span>
+        <input type="checkbox" id="slide-loop">
+        <input type="checkbox" id="slide-shadow">
+      </div>
+      <!-- 再生範囲ボタン -->
+      <div id="slide-range-vis-bar" style="margin-top:10px;background:var(--cream);border:1px solid var(--border);border-radius:10px;padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <button onclick="showSlideRangePopup()" style="padding:8px 18px;border-radius:20px;border:1.5px solid var(--accent2);background:var(--card);color:var(--accent2);font-size:13px;cursor:pointer;font-family:'BIZ UDGothic',sans-serif;font-weight:600">🎯 再生範囲を設定</button>
+        <span id="slide-range-display" style="font-size:13px;color:var(--muted)">全カード</span>
+        <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;margin-left:4px">
+          <input type="checkbox" id="slide-loop-vis" style="accent-color:var(--accent)" onchange="document.getElementById('slide-loop').checked=this.checked;saveProgress()"> ループ
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-left:8px">
+          <input type="checkbox" id="slide-shadow-vis" onchange="document.getElementById('slide-shadow').checked=this.checked;saveProgress()" style="accent-color:var(--speak)"> シャドーイング
+        </label>
+      </div>
     </div>
     <div id="mode-list" style="display:none"></div>
   </div>
@@ -729,8 +731,16 @@ function tryAutoRestore(){
     const disp=document.getElementById('file-name-display');
     if(disp&&dispName) disp.textContent=dispName;
     const localOk=restoreProgress(lastKey);
-    // Firebaseからより新しいデータがあれば上書き
-    if(window.fbLoadProgress){
+    // Firebaseからより新しいデータがあれば上書き（初期化待ち対応）
+    function doFbSync(){
+      if(!window.fbLoadProgress){
+        if((doFbSync._waited||0)<30){
+          doFbSync._waited=(doFbSync._waited||0)+1;
+          setTimeout(doFbSync,100);
+          return;
+        }
+        return; // タイムアウト
+      }
       window.fbLoadProgress(lastKey).then(fbData=>{
         if(!fbData||!fbData.updatedAt)return;
         // Firebaseのデータを常に適用（複数デバイス同期）
@@ -766,6 +776,7 @@ function tryAutoRestore(){
         }
       }).catch(()=>{});
     }
+    doFbSync();
     return localOk;
   }catch(e){return false;}
 }
@@ -1295,6 +1306,8 @@ function setMode(m){
   });
   const frb=document.getElementById('flash-range-bar');
   if(frb) frb.style.display=m==='flash'?'flex':'none';
+  const scw=document.getElementById('slide-controls-wrap');
+  if(scw) scw.style.display=m==='slide'?'block':'none';
   document.querySelectorAll('.tab').forEach((t,i)=>{
     t.classList.toggle('active',['flash','type','slide','list'][i]===m);
   });
@@ -2193,14 +2206,72 @@ function renderList(){
   </table>`;
 }
 
-// 起動時：前回データがあれば自動復元、なければサンプル
+// 起動時：前回データがあれば自動復元、なければFirebaseから復元、それもなければサンプル
 (function(){
   const restored=tryAutoRestore();
   if(restored){
     init(true);
-  } else {
-    loadDemo();
+    return;
   }
+  // localStorageにデータがない場合、Firebaseが初期化されるのを待ってから復元を試みる
+  function tryFirebaseRestore(){
+    if(!window.fbLoadProgress){
+      // Firebaseがまだ準備できていなければ少し待つ（最大3秒）
+      if((tryFirebaseRestore._waited||0) < 30){
+        tryFirebaseRestore._waited=(tryFirebaseRestore._waited||0)+1;
+        setTimeout(tryFirebaseRestore, 100);
+        return;
+      }
+      // タイムアウト → サンプル表示
+      loadDemo();
+      return;
+    }
+    // Firebaseから最後に使ったキーを探して復元
+    // まずlocalStorageのキーを確認、なければFirebaseのprogressコレクションを検索
+    const lastKey=localStorage.getItem('wh_lastKey');
+    if(lastKey){
+      // キーはあるが単語データがない → Firebaseから取得
+      Promise.all([
+        window.fbLoadProgress(lastKey).catch(()=>null),
+        window.fbLoadWords(lastKey).catch(()=>null)
+      ]).then(function([fbData, fbWords]){
+        if(fbWords&&fbWords.length){
+          words=fbWords;
+          _dataKey=lastKey;
+          const dispName=localStorage.getItem('wh_dispName_'+lastKey)||lastKey;
+          const disp=document.getElementById('file-name-display');
+          if(disp) disp.textContent=dispName;
+          if(fbData&&fbData.updatedAt){
+            idxFlash=fbData.idxFlash||0;
+            idxType=fbData.idxType||0;
+            idxSlide=fbData.idxSlide||0;
+            idxByFilter=fbData.idxByFilter||{};
+            filter=fbData.filter||'all';
+            mode=fbData.mode||'flash';
+            knownFlash=new Set(fbData.knownFlash||[]);
+            knownType=new Set(fbData.knownType||[]);
+            knownSlide=new Set(fbData.knownSlide||[]);
+            pronBM=new Set(fbData.pronBM||[]);
+            memBM=new Set(fbData.memBM||[]);
+            studyCount=fbData.studyCount||{};
+            studyDates=fbData.studyDates||{};
+            if(fbData.slideSettings) window._pendingSlideSettings=fbData.slideSettings;
+            if(fbData.flashSettings) window._pendingFlashSettings=fbData.flashSettings;
+            localStorage.setItem('wh_prog_'+lastKey, JSON.stringify(fbData));
+            localStorage.setItem('wh_words_'+lastKey, JSON.stringify(words));
+            localStorage.setItem('wh_lastKey', lastKey);
+          }
+          init(true);
+          showToast('☁️ Firebaseから前回の続きを復元しました');
+        } else {
+          loadDemo();
+        }
+      }).catch(function(){ loadDemo(); });
+    } else {
+      loadDemo();
+    }
+  }
+  tryFirebaseRestore();
 })();
 </script>
 <script>

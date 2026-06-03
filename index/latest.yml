@@ -1,0 +1,8 @@
+version: 5.1.0
+files:
+  - url: Lingo-Lab-Setup-5.1.0.exe
+    sha512: dyEVtg2xFAttLos8TWVeBIA7VC8bkP0XShNBHKuusdB/WyxqukzhVIBvpj+wd7FLwypPLOxPmIud361b+DjqFA==
+    size: 100075453
+path: Lingo-Lab-Setup-5.1.0.exe
+sha512: dyEVtg2xFAttLos8TWVeBIA7VC8bkP0XShNBHKuusdB/WyxqukzhVIBvpj+wd7FLwypPLOxPmIud361b+DjqFA==
+releaseDate: '2026-06-03T03:23:48.128Z'

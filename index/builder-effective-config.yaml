@@ -1,0 +1,24 @@
+directories:
+  output: dist
+  buildResources: build
+appId: com.lingolab.app
+productName: Lingo Lab
+files:
+  - filter:
+      - main.js
+      - preload.js
+      - node_modules/**/*
+extraFiles:
+  - from: wordholic_vocab_v6.html
+    to: wordholic_vocab_v6.html
+extraResources:
+  - from: C:/Program Files/nodejs/node.exe
+    to: node.exe
+  - from: tts_worker.js
+    to: tts_worker.js
+win:
+  target: nsis
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+electronVersion: 29.4.6
