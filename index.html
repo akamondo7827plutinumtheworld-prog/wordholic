@@ -1391,6 +1391,7 @@ function renderFlash(){
     </div>
     <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
       <div style="flex:1;text-align:center;font-size:16px;font-weight:600;color:var(--accent2);cursor:pointer;padding:8px;border-radius:8px;border:1.5px solid var(--accent2)" onclick="jumpToCard()" title="番号を入力してジャンプ">${Math.min(idx,filt.length-1)+1} / ${filt.length} ✈</div>
+      ${searchQuery?`<div style="font-size:12px;color:var(--muted);background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:6px 12px;white-space:nowrap">全体 <span style="font-weight:700;color:var(--ink)">${oi+1}</span> 枚目</div>`:''}
       <button style="padding:8px 12px;border-radius:8px;border:1.5px solid var(--accent);background:var(--card);color:var(--accent);font-size:14px;cursor:pointer" onclick="deleteCard(${oi})" title="このカードを削除">🗑️</button>
     </div>
   `;
@@ -1531,6 +1532,7 @@ function renderType(){
     </div>
     <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
       <div style="flex:1;text-align:center;font-size:16px;font-weight:600;color:var(--accent2);cursor:pointer;padding:8px;border-radius:8px;border:1.5px solid var(--accent2)" onclick="jumpToCard()" title="番号を入力してジャンプ">${Math.min(idx,filt.length-1)+1} / ${filt.length} ✈</div>
+      ${searchQuery?`<div style="font-size:12px;color:var(--muted);background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:6px 12px;white-space:nowrap">全体 <span style="font-weight:700;color:var(--ink)">${oi+1}</span> 枚目</div>`:''}
       <button style="padding:8px 12px;border-radius:8px;border:1.5px solid var(--accent);background:var(--card);color:var(--accent);font-size:14px;cursor:pointer" onclick="deleteCard(${oi})" title="このカードを削除">🗑️</button>
     </div>
   `;
@@ -1596,6 +1598,7 @@ function renderSlide(){
     </div>
     <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
       <div style="flex:1;text-align:center;font-size:16px;font-weight:600;color:var(--accent2);cursor:pointer;padding:8px;border-radius:8px;border:1.5px solid var(--accent2)" onclick="jumpToCard()" title="番号を入力してジャンプ">${Math.min(idx,filt.length-1)+1} / ${filt.length} ✈</div>
+      ${searchQuery?`<div style="font-size:12px;color:var(--muted);background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:6px 12px;white-space:nowrap">全体 <span style="font-weight:700;color:var(--ink)">${oi+1}</span> 枚目</div>`:''}
       <button style="padding:8px 12px;border-radius:8px;border:1.5px solid var(--accent);background:var(--card);color:var(--accent);font-size:14px;cursor:pointer" onclick="deleteCard(${oi})" title="このカードを削除">🗑️</button>
     </div>
   `;
@@ -2042,6 +2045,7 @@ function doEditCard(){
   modal.style.display='none';
   words[oi]={...words[oi], jp, en, ph, note};
   saveProgress();
+  if(window.fbSaveWords) window.fbSaveWords(_dataKey, words);
   updateStats();
   if(mode==='flash')renderFlash();
   else if(mode==='type')renderType();
