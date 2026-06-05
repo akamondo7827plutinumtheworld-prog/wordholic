@@ -1579,6 +1579,7 @@ function renderSlide(){
       <div class="slide-jp">${w.jp.replace(/\n/g,'<br>')}</div>
       <div class="slide-en">${w.en.replace(/\n/g,"<br>")}</div>
       ${w.ph?`<div style="font-size:28px;color:var(--muted);font-family:'BIZ UDGothic',sans-serif;margin-top:4px;letter-spacing:1px">${w.ph}</div>`:''}
+      ${w.note?`<div style="font-size:13px;color:var(--muted);margin-top:10px;text-align:left;padding:8px 12px;line-height:1.7;background:var(--cream);border-radius:8px;max-height:100px;overflow-y:auto;width:100%;box-sizing:border-box">${w.note.replace(/\n/g,'<br>')}</div>`:''}
       <div class="slide-speak" style="position:relative;z-index:10" onclick="event.stopPropagation()">${speakBtnHtml(w.en)}</div>
       <!-- 左右クリックゾーン -->
       <div style="position:absolute;top:0;left:0;width:50%;height:100%;cursor:pointer;display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px;opacity:0;transition:opacity 0.2s;z-index:5"
