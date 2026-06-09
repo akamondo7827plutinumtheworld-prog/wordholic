@@ -1032,8 +1032,8 @@ function speakBtnHtml(text){
   const escSQ=text.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
   return `<div style="display:flex;gap:8px;justify-content:center;align-items:center">
     <button id="slide-inline-stop-btn" class="speak-btn" style="background:#e74c3c;border-color:#e74c3c;color:#fff;padding:9px 50px;justify-content:center" onclick="event.stopPropagation();if(window._slideRunning)stopSlide();else{navigate(1);startSlide();}">
-      <svg viewBox="0 0 24 24" style="fill:#fff"><path d="M6 6h12v12H6z"/></svg>
-      停止
+      <svg viewBox="0 0 24 24" style="fill:#fff" id="slide-inline-icon"><path d="${window._slideRunning?'M6 6h12v12H6z':'M8 5v14l11-7z'}"/></svg>
+      ${window._slideRunning?'停止':'次へ'}
     </button>
     <button class="speak-btn" data-text="${esc}" onclick="event.stopPropagation();if(window._slideRunning)stopSlide();speak('${escSQ}')">
       <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
