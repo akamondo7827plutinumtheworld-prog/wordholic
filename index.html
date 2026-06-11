@@ -133,6 +133,7 @@ input[type=file]{display:none}
 .bm-btn{padding:7px 16px;border-radius:20px;border:1.5px solid var(--border);background:var(--card);font-family:'BIZ UDGothic',sans-serif;font-size:13px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:6px}
 .bm-btn.on-pron{background:var(--bm-pron);color:#fff;border-color:var(--bm-pron)}
 .bm-btn.on-mem{background:var(--bm-mem);color:#fff;border-color:var(--bm-mem)}
+.bm-btn.on-impt{background:#c0392b;color:#fff;border-color:#c0392b}
 .bm-btn.off{background:var(--card);color:var(--muted)}
 
 /* Flash card */
@@ -280,6 +281,7 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
       <button class="filter-btn active-all" id="f-all" onclick="setFilter('all')">📚 全て <span class="filter-count" id="fc-all"></span></button>
       <button class="filter-btn" id="f-pron" onclick="setFilter('pron')">🎤 発音練習 <span class="filter-count" id="fc-pron"></span></button>
       <button class="filter-btn" id="f-mem" onclick="setFilter('mem')">💡 記憶 <span class="filter-count" id="fc-mem"></span></button>
+      <button class="filter-btn" id="f-impt" onclick="setFilter('impt')">⭐ 重点練習 <span class="filter-count" id="fc-impt"></span></button>
       <button class="filter-btn" id="f-today" onclick="setFilter('today')">📅 今日 <span class="filter-count" id="fc-today"></span></button>
       <button class="filter-btn" id="f-yesterday" onclick="setFilter('yesterday')">📅 昨日 <span class="filter-count" id="fc-yesterday"></span></button>
     </div>
@@ -453,7 +455,7 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
-let words=[], pronBM=new Set(), memBM=new Set(), studyCount={}, studyDates={}, searchQuery='';
+let words=[], pronBM=new Set(), memBM=new Set(), imptBM=new Set(), studyCount={}, studyDates={}, searchQuery='';
 let idxFlash=0, idxType=0, idxSlide=0;
 let idxByFilter={}; // フィルター別idx
 function getIdxKey(){ return mode+'_'+filter; }
@@ -542,6 +544,7 @@ function applyFbData(key, fbData, fbWords){
     knownSlide=new Set(fbData.knownSlide||[]);
     pronBM=new Set(fbData.pronBM||[]);
     memBM=new Set(fbData.memBM||[]);
+    imptBM=new Set(fbData.imptBM||[]);
     studyCount=fbData.studyCount||{};
     studyDates=fbData.studyDates||{};
     localStorage.setItem('wh_prog_'+key, JSON.stringify(fbData));
@@ -676,6 +679,7 @@ function saveProgress(){
     knownSlide:[...knownSlide],
     pronBM:[...pronBM],
     memBM:[...memBM],
+    imptBM:[...imptBM],
     studyCount,
     studyDates,
     voiceSettings,
@@ -711,6 +715,7 @@ function restoreProgress(key){
     knownSlide=new Set(d.knownSlide||[]);
     pronBM=new Set(d.pronBM||[]);
     memBM=new Set(d.memBM||[]);
+    imptBM=new Set(d.imptBM||[]);
     studyCount=d.studyCount||{};
     studyDates=d.studyDates||{};
     // スライド設定を復元
@@ -761,6 +766,7 @@ function tryAutoRestore(){
         knownSlide=new Set(fbData.knownSlide||[]);
         pronBM=new Set(fbData.pronBM||[]);
         memBM=new Set(fbData.memBM||[]);
+        imptBM=new Set(fbData.imptBM||[]);
         studyCount=fbData.studyCount||{};
         studyDates=fbData.studyDates||{};
         if(fbData.slideSettings) applySlideSettingsToDOM(fbData.slideSettings);
@@ -812,7 +818,7 @@ function clearProgress(){
   localStorage.removeItem('wh_words_'+_dataKey);
   localStorage.removeItem('wh_dispName_'+_dataKey);
   localStorage.removeItem('wh_lastKey');
-  idxFlash=0;idxType=0;idxSlide=0;idxByFilter={};knownFlash=new Set();knownType=new Set();knownSlide=new Set();pronBM=new Set();memBM=new Set();studyCount={};studyDates={};filter='all';mode='flash';
+  idxFlash=0;idxType=0;idxSlide=0;idxByFilter={};knownFlash=new Set();knownType=new Set();knownSlide=new Set();pronBM=new Set();memBM=new Set();imptBM=new Set();studyCount={};studyDates={};filter='all';mode='flash';
   setFilter('all');setMode('flash');
   showToast('進捗をリセットしました');
 }
@@ -1027,10 +1033,11 @@ function speakCurrent(){
   speak(filt[Math.min(idx,filt.length-1)].en);
 }
 
-function speakBtnHtml(text){
+function speakBtnHtml(text,oi){
   const esc=text.replace(/"/g,'&quot;');
   const escSQ=text.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
   return `<div style="display:flex;gap:8px;justify-content:center;align-items:center">
+    <button class="bm-btn ${imptBM.has(oi)?'on-impt':'off'}" style="padding:9px 18px" onclick="event.stopPropagation();toggleBM('impt',${oi})">⭐ ${imptBM.has(oi)?'重点中':'重点練習'}</button>
     <button id="slide-inline-stop-btn" class="speak-btn" style="background:#e74c3c;border-color:#e74c3c;color:#fff;padding:9px 50px;justify-content:center" onclick="event.stopPropagation();if(window._slideRunning)stopSlide();else{navigate(1);startSlide();}">
       <svg viewBox="0 0 24 24" style="fill:#fff" id="slide-inline-icon"><path d="${window._slideRunning?'M6 6h12v12H6z':'M8 5v14l11-7z'}"/></svg>
       ${window._slideRunning?'停止':'次へ'}
@@ -1193,6 +1200,7 @@ function getFiltered(){
   let base;
   if(filter==='pron') base=words.map((w,i)=>({...w,orig:i})).filter(w=>pronBM.has(w.orig));
   else if(filter==='mem') base=words.map((w,i)=>({...w,orig:i})).filter(w=>memBM.has(w.orig));
+  else if(filter==='impt') base=words.map((w,i)=>({...w,orig:i})).filter(w=>imptBM.has(w.orig));
   else if(filter==='today'){
     const today=getStudyDate();
     base=words.map((w,i)=>({...w,orig:i})).filter(w=>(studyDates[w.orig]||[]).includes(today));
@@ -1296,6 +1304,7 @@ function updateStats(){
   document.getElementById('fc-all').textContent='('+words.length+')';
   document.getElementById('fc-pron').textContent='('+pronBM.size+')';
   document.getElementById('fc-mem').textContent='('+memBM.size+')';
+  const fcImpt=document.getElementById('fc-impt');if(fcImpt)fcImpt.textContent='('+imptBM.size+')';
   const todayKey=getStudyDate();
   const d2=new Date(); if(d2.getHours()<2) d2.setDate(d2.getDate()-1); d2.setDate(d2.getDate()-1);
   const yesterdayKey=d2.toISOString().slice(0,10);
@@ -1346,6 +1355,7 @@ function bmRowHtml(oi){
   return`<div class="bm-row">
     <button class="bm-btn ${ip?'on-pron':'off'}" onclick="toggleBM('pron',${oi})">🎤 ${ip?'発音練習中':'発音練習に追加'}</button>
     <button class="bm-btn ${im?'on-mem':'off'}" onclick="toggleBM('mem',${oi})">💡 ${im?'記憶中':'記憶に追加'}</button>
+    <button class="bm-btn ${imptBM.has(oi)?'on-impt':'off'}" onclick="toggleBM('impt',${oi})">⭐ ${imptBM.has(oi)?'重点練習中':'重点練習に追加'}</button>
     <div style="display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;background:var(--cream);border:1.5px solid var(--border);font-size:13px">
       <span>📚 学習回数: <strong>${sc}</strong></span>
       ${sc>0?`<button onclick="event.stopPropagation();studyCount[${oi}]=Math.max(0,(studyCount[${oi}]||0)-1);saveProgress();renderFlash()" style="padding:2px 8px;border-radius:10px;border:1px solid var(--border);background:var(--paper);font-size:11px;cursor:pointer">-1</button>`:''}
@@ -1357,7 +1367,8 @@ function bmRowHtml(oi){
 
 function toggleBM(type,oi){
   if(type==='pron'){if(pronBM.has(oi))pronBM.delete(oi);else pronBM.add(oi);}
-  else{if(memBM.has(oi))memBM.delete(oi);else memBM.add(oi);}
+  else if(type==='mem'){if(memBM.has(oi))memBM.delete(oi);else memBM.add(oi);}
+  else if(type==='impt'){if(imptBM.has(oi))imptBM.delete(oi);else imptBM.add(oi);}
   updateStats();
   const filt=getFiltered();
   if(idx>=filt.length&&filt.length>0)idx=filt.length-1;
@@ -1377,8 +1388,7 @@ function renderFlash(){
   const w=filt[Math.min(idx,filt.length-1)],oi=w.orig;
   el.innerHTML=`
     ${bmRowHtml(oi)}
-    <div style="display:flex;gap:12px;align-items:stretch;margin-bottom:14px">
-      <div class="card-wrap" style="flex:1;margin-bottom:0" onclick="flipCard()">
+    <div class="card-wrap" style="margin-bottom:10px" onclick="flipCard()">
         <div class="card" id="fc">
           <div class="card-face">
             ${bmDotsHtml(oi)}
@@ -1399,11 +1409,10 @@ function renderFlash(){
           </div>
         </div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:10px;justify-content:center">
-        <button class="btn nav-side-btn" onclick="navigate(-1)">▲<br>前へ</button>
-        <button class="btn btn-good nav-side-btn" style="font-size:11px;background:#27ae60;color:#fff;border-color:#27ae60" onclick="markKnown(true)">学習済<br>✓</button>
-        <button class="btn nav-side-btn" onclick="navigate(1)">次へ<br>▼</button>
-      </div>
+    <div style="display:flex;gap:6px;margin-bottom:10px">
+      <button style="flex:1;padding:14px 0;font-size:20px;font-weight:700;border-radius:10px;border:1.5px solid var(--border);background:var(--card);color:var(--ink);cursor:pointer;font-family:'BIZ UDGothic',sans-serif" onclick="navigate(-1)">◀ 前へ</button>
+      <button style="flex:1;padding:14px 0;font-size:16px;font-weight:700;border-radius:10px;border:1.5px solid #27ae60;background:#27ae60;color:#fff;cursor:pointer;font-family:'BIZ UDGothic',sans-serif" onclick="markKnown(true)">学習済 ✓</button>
+      <button style="flex:1;padding:14px 0;font-size:20px;font-weight:700;border-radius:10px;border:1.5px solid var(--border);background:var(--card);color:var(--ink);cursor:pointer;font-family:'BIZ UDGothic',sans-serif" onclick="navigate(1)">次へ ▶</button>
     </div>
     <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
       <div style="flex:1;text-align:center;font-size:16px;font-weight:600;color:var(--accent2);cursor:pointer;padding:8px;border-radius:8px;border:1.5px solid var(--accent2)" onclick="jumpToCard()" title="番号を入力してジャンプ">${Math.min(idx,filt.length-1)+1} / ${filt.length} ✈</div>
@@ -1541,10 +1550,10 @@ function renderType(){
       <div class="typing-ans" id="t-ans"></div>
       <div style="margin-top:16px">${speakBtnHtml(w.en)}</div>
     </div>
-    <div class="nav-btns">
-      <button class="btn" onclick="navigate(-1)">← 前へ</button>
-      <button class="btn btn-primary" onclick="checkType()">確認 (Enter)</button>
-      <button class="btn" onclick="navigate(1)">次へ →</button>
+    <div style="display:flex;gap:6px;margin-bottom:10px">
+      <button style="flex:1;padding:14px 0;font-size:20px;font-weight:700;border-radius:10px;border:1.5px solid var(--border);background:var(--card);color:var(--ink);cursor:pointer;font-family:'BIZ UDGothic',sans-serif" onclick="navigate(-1)">◀ 前へ</button>
+      <button style="flex:1;padding:14px 0;font-size:16px;font-weight:700;border-radius:10px;border:1.5px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer;font-family:'BIZ UDGothic',sans-serif" onclick="checkType()">確認 (Enter)</button>
+      <button style="flex:1;padding:14px 0;font-size:20px;font-weight:700;border-radius:10px;border:1.5px solid var(--border);background:var(--card);color:var(--ink);cursor:pointer;font-family:'BIZ UDGothic',sans-serif" onclick="navigate(1)">次へ ▶</button>
     </div>
     <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
       <div style="flex:1;text-align:center;font-size:16px;font-weight:600;color:var(--accent2);cursor:pointer;padding:8px;border-radius:8px;border:1.5px solid var(--accent2)" onclick="jumpToCard()" title="番号を入力してジャンプ">${Math.min(idx,filt.length-1)+1} / ${filt.length} ✈</div>
@@ -1590,7 +1599,7 @@ function renderSlide(){
       <div class="slide-en">${w.en.replace(/\n/g,"<br>")}</div>
       ${w.ph?`<div style="font-size:28px;color:var(--muted);font-family:'BIZ UDGothic',sans-serif;margin-top:4px;letter-spacing:1px">${w.ph}</div>`:''}
       ${w.note?`<div style="font-size:13px;color:var(--muted);margin-top:10px;text-align:left;padding:8px 12px;line-height:1.7;background:var(--cream);border-radius:8px;max-height:100px;overflow-y:auto;width:100%;box-sizing:border-box;cursor:pointer;position:relative;z-index:10" onclick="event.stopPropagation();navigate(1);if(!window._slideRunning)startSlide();" title="タップで次のカードへ＆自動再生開始">${w.note.replace(/\n/g,'<br>')}</div>`:''}
-      <div class="slide-speak" style="position:relative;z-index:10" onclick="event.stopPropagation()">${speakBtnHtml(w.en)}</div>
+      <div class="slide-speak" style="position:relative;z-index:10" onclick="event.stopPropagation()">${speakBtnHtml(w.en,oi)}</div>
       <!-- 左右クリックゾーン -->
       <div style="position:absolute;top:0;left:0;width:50%;height:100%;cursor:pointer;display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px;opacity:0;transition:opacity 0.2s;z-index:5"
            onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0"
@@ -1607,11 +1616,9 @@ function renderSlide(){
     </div>
     <div class="slide-nav-row" style="display:flex;gap:6px;margin-top:10px">
       <button style="flex:1;padding:14px 0;font-size:20px;font-weight:700;border-radius:10px;border:1.5px solid var(--border);background:var(--card);color:var(--ink);cursor:pointer;font-family:'BIZ UDGothic',sans-serif" onclick="if(window._slideRunning)stopSlide();navigate(-1)">◀ 前へ</button>
-      <button style="flex:1;padding:14px 0;font-size:20px;font-weight:700;border-radius:10px;border:1.5px solid var(--border);background:var(--card);color:var(--ink);cursor:pointer;font-family:'BIZ UDGothic',sans-serif" onclick="navigate(1);if(!window._slideRunning)startSlide();">次へ ▶</button>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
-      <button id="slide-start-btn" style="flex:1;text-align:center;font-size:16px;font-weight:600;color:#fff;cursor:pointer;padding:8px;border-radius:8px;border:1.5px solid var(--accent);background:var(--accent);font-family:'BIZ UDGothic',sans-serif" onclick="startSlide()">▶ 自動再生</button>
-      <button id="slide-stop-btn" style="flex:1;text-align:center;font-size:16px;font-weight:600;color:#fff;cursor:pointer;padding:8px;border-radius:8px;border:1.5px solid #e74c3c;background:#e74c3c;display:none;font-family:'BIZ UDGothic',sans-serif" onclick="stopSlide()">⏹ 停止</button>
+      <button id="slide-start-btn" style="flex:1;padding:14px 0;font-size:16px;font-weight:700;border-radius:10px;border:1.5px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer;font-family:'BIZ UDGothic',sans-serif" onclick="startSlide()">▶ 自動再生</button>
+      <button id="slide-stop-btn" style="flex:1;padding:14px 0;font-size:16px;font-weight:700;border-radius:10px;border:1.5px solid #e74c3c;background:#e74c3c;color:#fff;cursor:pointer;font-family:'BIZ UDGothic',sans-serif;display:none" onclick="stopSlide()">⏹ 停止</button>
+      <button style="flex:1;padding:14px 0;font-size:20px;font-weight:700;border-radius:10px;border:1.5px solid var(--border);background:var(--card);color:var(--ink);cursor:pointer;font-family:'BIZ UDGothic',sans-serif" onclick="navigate(1)">次へ ▶</button>
     </div>
     <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
       <div style="flex:1;text-align:center;font-size:16px;font-weight:600;color:var(--accent2);cursor:pointer;padding:8px;border-radius:8px;border:1.5px solid var(--accent2)" onclick="jumpToCard()" title="番号を入力してジャンプ">${Math.min(idx,filt.length-1)+1} / ${filt.length} ✈</div>
