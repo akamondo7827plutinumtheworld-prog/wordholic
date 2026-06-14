@@ -1203,14 +1203,14 @@ function getFiltered(){
   else if(filter==='impt') base=words.map((w,i)=>({...w,orig:i})).filter(w=>imptBM.has(w.orig));
   else if(filter==='today'){
     const today=getStudyDate();
-    base=words.map((w,i)=>({...w,orig:i})).filter(w=>(studyDates[w.orig]||[]).includes(today));
+    base=words.map((w,i)=>({...w,orig:i})).filter(w=>(studyDates[String(i)]||studyDates[i]||[]).includes(today));
   }
   else if(filter==='yesterday'){
     const d=new Date();
     if(d.getHours()<2) d.setDate(d.getDate()-1);
     d.setDate(d.getDate()-1);
     const yesterday=d.toISOString().slice(0,10);
-    base=words.map((w,i)=>({...w,orig:i})).filter(w=>(studyDates[w.orig]||[]).includes(yesterday));
+    base=words.map((w,i)=>({...w,orig:i})).filter(w=>(studyDates[String(i)]||studyDates[i]||[]).includes(yesterday));
   }
   else base=words.map((w,i)=>({...w,orig:i}));
   if(searchQuery){
@@ -1308,16 +1308,16 @@ function updateStats(){
   const todayKey=getStudyDate();
   const d2=new Date(); if(d2.getHours()<2) d2.setDate(d2.getDate()-1); d2.setDate(d2.getDate()-1);
   const yesterdayKey=d2.toISOString().slice(0,10);
-  const todayCount=words.filter((_,i)=>(studyDates[i]||[]).includes(todayKey)).length;
-  const yestCount=words.filter((_,i)=>(studyDates[i]||[]).includes(yesterdayKey)).length;
+  const todayCount=words.filter((_,i)=>(studyDates[String(i)]||studyDates[i]||[]).includes(todayKey)).length;
+  const yestCount=words.filter((_,i)=>(studyDates[String(i)]||studyDates[i]||[]).includes(yesterdayKey)).length;
   const fcToday=document.getElementById('fc-today'); if(fcToday) fcToday.textContent='('+todayCount+')';
   const fcYest=document.getElementById('fc-yesterday'); if(fcYest) fcYest.textContent='('+yestCount+')';
 }
 
 function setFilter(f,skipMode){
   filter=f;
-  if(!skipMode && mode!=='flash') idx=0; // フラッシュ以外はリセット
-  ['all','pron','mem','today','yesterday'].forEach(x=>{
+  if(!skipMode) idx=0; // フィルター切替時は常にidxをリセット
+  ['all','pron','mem','impt','today','yesterday'].forEach(x=>{
     const el=document.getElementById('f-'+x); if(el) el.className='filter-btn'+(x===f?' active-all':'');
   });
   updateStats();
@@ -1528,8 +1528,9 @@ function markKnown(v){
     recordStudy();
     studyCount[oi]=(studyCount[oi]||0)+1;
     // 学習日付を記録
-    if(!studyDates[oi]) studyDates[oi]=[];
-    studyDates[oi].push(getStudyDate());
+    const doiKey=String(oi);
+    if(!studyDates[doiKey]) studyDates[doiKey]=[];
+    if(!studyDates[doiKey].includes(getStudyDate())) studyDates[doiKey].push(getStudyDate());
   } else getKnown().delete(oi);
   updateStats();
   if(idx<filt.length-1)navigate(1);else renderFlash();
@@ -1591,6 +1592,17 @@ function renderSlide(){
   if(!filt.length){cardWrap.innerHTML=`<div class="empty-filter">📭 このフィルターに単語がありません</div>`;return;}
   updateSlideRangeMax();
   const w=filt[Math.min(idx,filt.length-1)],oi=w.orig;
+  // 自動再生中はカード表示時に学習日を記録
+  if(window._slideRunning){
+    const sdKey=String(oi);
+    if(!studyDates[sdKey]) studyDates[sdKey]=[];
+    const sdToday=getStudyDate();
+    if(!studyDates[sdKey].includes(sdToday)){
+      studyDates[sdKey].push(sdToday);
+      recordStudy();
+    }
+    updateStats();
+  }
   cardWrap.innerHTML=`
     ${bmRowHtml(oi)}
     <div class="slide-card" style="position:relative;overflow:hidden" title="左クリック→発音練習登録 / 右クリック→記憶登録">
@@ -1712,7 +1724,15 @@ function _runSlide(){
   const filt=getFiltered();
   if(!filt.length){ stopSlide(); return; }
 
-  const {from,to}=mode==='flash'?getFlashRange():getSlideRange();
+  let from, to;
+  // フィルター中はレンジ入力を無視して全件対象にする
+  if(filter!=='all'){
+    from=0; to=filt.length-1;
+  } else {
+    const range=mode==='flash'?getFlashRange():getSlideRange();
+    from=Math.min(range.from, filt.length-1);
+    to=Math.min(range.to, filt.length-1);
+  }
   if(idx<from||idx>to){
     idx=from; updateStats();
     if(mode==='flash')renderFlash();else renderSlide();
@@ -1740,7 +1760,15 @@ function _runSlide(){
     const shadowMs=shadowing ? Math.max(0, (window._lastEnSpeakMs||0) + longBonus + shortAdj) : 0;
     slideTimer=setTimeout(function(){
       if(!window._slideRunning) return;
-      const {from:f,to:t}=mode==='flash'?getFlashRange():getSlideRange();
+      const filt2=getFiltered();
+      let f, t;
+      if(filter!=='all'){
+        f=0; t=filt2.length-1;
+      } else {
+        const range2=mode==='flash'?getFlashRange():getSlideRange();
+        f=Math.min(range2.from, filt2.length-1);
+        t=Math.min(range2.to, filt2.length-1);
+      }
       const loop=mode==='flash'?document.getElementById('flash-loop')?.checked:document.getElementById('slide-loop')?.checked;
       if(idx+1>t){
         if(loop){ idx=f; }
@@ -1856,6 +1884,19 @@ function slideRegister(oi, type){
 }
 
 function stopSlide(){
+  // 停止時に現在のカードの学習日を記録
+  if(window._slideRunning){
+    const filt=getFiltered();
+    const oi=filt[Math.min(idx,filt.length-1)]?.orig;
+    if(oi!==undefined){
+      const key=String(oi);
+      if(!studyDates[key]) studyDates[key]=[];
+      const today=getStudyDate();
+      if(!studyDates[key].includes(today)) studyDates[key].push(today);
+      recordStudy();
+      saveProgress();
+    }
+  }
   window._slideRunning=false;
   const inlineBtn=document.getElementById('slide-inline-stop-btn');
   if(inlineBtn) inlineBtn.innerHTML='<svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:currentColor"><path d="M8 5v14l11-7z"/></svg> 次へ';
