@@ -1036,12 +1036,13 @@ function speakCurrent(){
 function speakBtnHtml(text,oi){
   const esc=text.replace(/"/g,'&quot;');
   const escSQ=text.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  const isSlide=mode==='slide';
   return `<div style="display:flex;gap:8px;justify-content:center;align-items:center">
     <button class="bm-btn ${imptBM.has(oi)?'on-impt':'off'}" style="padding:9px 18px" onclick="event.stopPropagation();toggleBM('impt',${oi})">⭐ ${imptBM.has(oi)?'重点中':'重点練習'}</button>
-    <button id="slide-inline-stop-btn" class="speak-btn" style="background:#e74c3c;border-color:#e74c3c;color:#fff;padding:9px 50px;justify-content:center" onclick="event.stopPropagation();if(window._slideRunning)stopSlide();else{navigate(1);startSlide();}">
+    ${isSlide?`<button id="slide-inline-stop-btn" class="speak-btn" style="background:#e74c3c;border-color:#e74c3c;color:#fff;padding:9px 50px;justify-content:center" onclick="event.stopPropagation();if(window._slideRunning)stopSlide();else{navigate(1);startSlide();}">
       <svg viewBox="0 0 24 24" style="fill:#fff" id="slide-inline-icon"><path d="${window._slideRunning?'M6 6h12v12H6z':'M8 5v14l11-7z'}"/></svg>
       ${window._slideRunning?'停止':'次へ'}
-    </button>
+    </button>`:''}
     <button class="speak-btn" data-text="${esc}" onclick="event.stopPropagation();if(window._slideRunning)stopSlide();speak('${escSQ}')">
       <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
       読み上げる
@@ -1203,14 +1204,14 @@ function getFiltered(){
   else if(filter==='impt') base=words.map((w,i)=>({...w,orig:i})).filter(w=>imptBM.has(w.orig));
   else if(filter==='today'){
     const today=getStudyDate();
-    base=words.map((w,i)=>({...w,orig:i})).filter(w=>(studyDates[String(i)]||studyDates[i]||[]).includes(today));
+    base=words.map((w,i)=>({...w,orig:i})).filter(w=>(studyDates[String(w.orig)]||[]).includes(today));
   }
   else if(filter==='yesterday'){
     const d=new Date();
     if(d.getHours()<2) d.setDate(d.getDate()-1);
     d.setDate(d.getDate()-1);
     const yesterday=d.toISOString().slice(0,10);
-    base=words.map((w,i)=>({...w,orig:i})).filter(w=>(studyDates[String(i)]||studyDates[i]||[]).includes(yesterday));
+    base=words.map((w,i)=>({...w,orig:i})).filter(w=>(studyDates[String(w.orig)]||[]).includes(yesterday));
   }
   else base=words.map((w,i)=>({...w,orig:i}));
   if(searchQuery){
@@ -1308,20 +1309,20 @@ function updateStats(){
   const todayKey=getStudyDate();
   const d2=new Date(); if(d2.getHours()<2) d2.setDate(d2.getDate()-1); d2.setDate(d2.getDate()-1);
   const yesterdayKey=d2.toISOString().slice(0,10);
-  const todayCount=words.filter((_,i)=>(studyDates[String(i)]||studyDates[i]||[]).includes(todayKey)).length;
-  const yestCount=words.filter((_,i)=>(studyDates[String(i)]||studyDates[i]||[]).includes(yesterdayKey)).length;
+  const todayCount=words.filter((_,i)=>(studyDates[String(i)]||[]).includes(todayKey)).length;
+  const yestCount=words.filter((_,i)=>(studyDates[String(i)]||[]).includes(yesterdayKey)).length;
   const fcToday=document.getElementById('fc-today'); if(fcToday) fcToday.textContent='('+todayCount+')';
   const fcYest=document.getElementById('fc-yesterday'); if(fcYest) fcYest.textContent='('+yestCount+')';
 }
 
 function setFilter(f,skipMode){
   filter=f;
-  if(!skipMode) idx=0; // フィルター切替時は常にidxをリセット
+  if(!skipMode) idx=0;
   ['all','pron','mem','impt','today','yesterday'].forEach(x=>{
     const el=document.getElementById('f-'+x); if(el) el.className='filter-btn'+(x===f?' active-all':'');
   });
-  updateStats();
   if(!skipMode)setMode(mode);
+  else updateStats();
 }
 
 function setMode(m){
@@ -1446,9 +1447,24 @@ function flipCard(){
   saveProgress();
 }
 
+function recordSlideView(oi){
+  const key=String(oi);
+  if(!studyDates[key]) studyDates[key]=[];
+  const today=getStudyDate();
+  if(!studyDates[key].includes(today)){
+    studyDates[key].push(today);
+    recordStudy();
+  }
+}
+
 function navigate(d){
   const filt=getFiltered();
   if(!filt.length)return;
+  // 現在のカードを記録（スライドモード）
+  if(mode==='slide'){
+    const oi=filt[Math.min(idx,filt.length-1)]?.orig;
+    if(oi!==undefined) recordSlideView(oi);
+  }
   if(window._slideRunning) stopSlide();
   idx=((idx+d)+filt.length)%filt.length;
   updateStats();
@@ -1594,13 +1610,8 @@ function renderSlide(){
   const w=filt[Math.min(idx,filt.length-1)],oi=w.orig;
   // 自動再生中はカード表示時に学習日を記録
   if(window._slideRunning){
-    const sdKey=String(oi);
-    if(!studyDates[sdKey]) studyDates[sdKey]=[];
-    const sdToday=getStudyDate();
-    if(!studyDates[sdKey].includes(sdToday)){
-      studyDates[sdKey].push(sdToday);
-      recordStudy();
-    }
+    recordSlideView(oi);
+    saveProgress();
     updateStats();
   }
   cardWrap.innerHTML=`
@@ -1610,7 +1621,7 @@ function renderSlide(){
       <div class="slide-jp">${w.jp.replace(/\n/g,'<br>')}</div>
       <div class="slide-en">${w.en.replace(/\n/g,"<br>")}</div>
       ${w.ph?`<div style="font-size:28px;color:var(--muted);font-family:'BIZ UDGothic',sans-serif;margin-top:4px;letter-spacing:1px">${w.ph}</div>`:''}
-      ${w.note?`<div style="font-size:13px;color:var(--muted);margin-top:10px;text-align:left;padding:8px 12px;line-height:1.7;background:var(--cream);border-radius:8px;max-height:100px;overflow-y:auto;width:100%;box-sizing:border-box;cursor:pointer;position:relative;z-index:10" onclick="event.stopPropagation();navigate(1);if(!window._slideRunning)startSlide();" title="タップで次のカードへ＆自動再生開始">${w.note.replace(/\n/g,'<br>')}</div>`:''}
+      ${w.note?`<div style="font-size:13px;color:var(--muted);margin-top:10px;text-align:left;padding:8px 12px;line-height:1.7;background:var(--cream);border-radius:8px;max-height:100px;overflow-y:auto;width:100%;box-sizing:border-box;cursor:pointer;position:relative;z-index:10" onclick="event.stopPropagation();recordSlideView(oi);navigate(1);if(!window._slideRunning)startSlide();" title="タップで次のカードへ＆自動再生開始">${w.note.replace(/\n/g,'<br>')}</div>`:''}
       <div class="slide-speak" style="position:relative;z-index:10" onclick="event.stopPropagation()">${speakBtnHtml(w.en,oi)}</div>
       <!-- 左右クリックゾーン -->
       <div style="position:absolute;top:0;left:0;width:50%;height:100%;cursor:pointer;display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px;opacity:0;transition:opacity 0.2s;z-index:5"
