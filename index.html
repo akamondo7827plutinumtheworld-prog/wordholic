@@ -1802,7 +1802,7 @@ function _runSlide(){
       // 日本語: Edge TTS ja-JP-NanamiNeural → 完了後に英語
       const jpRaw=w.jp.replace(/\n/g,' ');
       const jpText=jpRaw.replace(/^\s*[\d０-９]+[\s.．\-。、）)]+\s*/,'').trim()||jpRaw;
-      const jaRate=Math.max(0.5,rate*0.85);
+      const jaRate=Math.max(0.5,rateJa);
       // 日本語完了コールバック
       window._slideOnAudioEnd=function(){
         if(!window._slideRunning)return;
