@@ -1920,6 +1920,7 @@ function _runSlide(){
     utt.volume=vol;
     let done=false;
     let fallbackTimer=null;
+    let viaFallback=false;
     // シャドーイング用：英語読み上げ開始時刻を記録
     if(trackForShadowing && window._slideRunning) window._enSpeakStart=Date.now();
     function finish(){
@@ -1927,7 +1928,13 @@ function _runSlide(){
       if(fallbackTimer){clearTimeout(fallbackTimer);fallbackTimer=null;}
       // シャドーイング用：英語読み上げ終了時刻を記録
       if(trackForShadowing && window._enSpeakStart){
-        window._lastEnSpeakMs=Date.now()-window._enSpeakStart;
+        if(viaFallback){
+          // onendが来ずタイムアウトで終了した場合は実測値が信頼できないため、
+          // 文字数からの推定値を使う（不正確な値が蓄積してズレるのを防ぐ）
+          window._lastEnSpeakMs=Math.max((text.length*70)/spRate, 800);
+        } else {
+          window._lastEnSpeakMs=Date.now()-window._enSpeakStart;
+        }
         window._enSpeakStart=null;
       }
       if(onDone)onDone();
@@ -1935,7 +1942,7 @@ function _runSlide(){
     utt.onend=finish;
     utt.onerror=function(e){ console.warn('TTS',lang,e.error); finish(); };
     // フォールバック：onendが来ない場合のみ発動（文字数×500ms、最低5秒）
-    fallbackTimer=setTimeout(finish, Math.max((text.length*500)/spRate, 5000));
+    fallbackTimer=setTimeout(function(){ viaFallback=true; finish(); }, Math.max((text.length*500)/spRate, 5000));
     window.speechSynthesis.speak(utt);
   }
 
