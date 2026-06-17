@@ -1025,17 +1025,19 @@ function speak(text){
   utt.volume=volume;
   utt.onstart=()=>{
     document.querySelectorAll('.speak-btn').forEach(b=>b.classList.remove('speaking'));
-    // iOSバグ対策: 読み上げ中にspeechSynthesisが止まらないようkeepAlive
-    if(_iosKeepAliveTimer) clearInterval(_iosKeepAliveTimer);
-    _iosKeepAliveTimer=setInterval(()=>{
-      if(window.speechSynthesis.speaking){
-        window.speechSynthesis.pause();
-        window.speechSynthesis.resume();
-      } else {
-        clearInterval(_iosKeepAliveTimer);
-        _iosKeepAliveTimer=null;
-      }
-    },5000);
+    // iOSバグ対策: 読み上げ中にspeechSynthesisが止まらないようkeepAlive（iOSのみ。Androidは音割れの原因になるため対象外）
+    if(/iPad|iPhone|iPod/.test(navigator.userAgent)){
+      if(_iosKeepAliveTimer) clearInterval(_iosKeepAliveTimer);
+      _iosKeepAliveTimer=setInterval(()=>{
+        if(window.speechSynthesis.speaking){
+          window.speechSynthesis.pause();
+          window.speechSynthesis.resume();
+        } else {
+          clearInterval(_iosKeepAliveTimer);
+          _iosKeepAliveTimer=null;
+        }
+      },5000);
+    }
   };
   utt.onend=()=>{
     if(_iosKeepAliveTimer){clearInterval(_iosKeepAliveTimer);_iosKeepAliveTimer=null;}
