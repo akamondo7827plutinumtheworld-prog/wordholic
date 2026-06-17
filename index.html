@@ -44,9 +44,17 @@ window.fbLoadProgress = function(key) {
 };
 
 window.fbSaveWords = function(key, words) {
-  if (!key) return;
-  db.collection('words').doc(key).set({ words: words, updatedAt: Date.now() })
+  if (!key) return Promise.resolve();
+  return db.collection('words').doc(key).set({ words: words, updatedAt: Date.now() })
     .catch(function(){});
+};
+
+window.fbLoadWordsFull = function(key) {
+  if (!key) return Promise.resolve(null);
+  return db.collection('words').doc(key).get().then(function(snap){
+    if (snap.exists) return snap.data();
+    return null;
+  }).catch(function(){ return null; });
 };
 
 window.fbLoadWords = function(key) {
@@ -138,9 +146,9 @@ input[type=file]{display:none}
 
 /* Flash card */
 .card-wrap{perspective:1000px;margin-bottom:14px}
-.card{width:100%;min-height:260px;position:relative;transform-style:preserve-3d;transition:transform .5s cubic-bezier(.4,0,.2,1);cursor:pointer}
+.card{width:100%;height:390px;position:relative;transform-style:preserve-3d;transition:transform .5s cubic-bezier(.4,0,.2,1);cursor:pointer}
 .card.flipped{transform:rotateY(180deg)}
-.card-face{position:absolute;width:100%;min-height:260px;backface-visibility:hidden;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 32px;background:var(--card);border:1.5px solid var(--border);box-shadow:0 4px 20px var(--shadow)}
+.card-face{position:absolute;width:100%;height:390px;backface-visibility:hidden;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 32px;background:var(--card);border:1.5px solid var(--border);box-shadow:0 4px 20px var(--shadow);overflow-y:auto}
 .card-back{transform:rotateY(180deg);background:var(--cream)}
 .card-label{font-size:10px;letter-spacing:2px;color:var(--muted);margin-bottom:12px;text-transform:uppercase}
 .card-word{font-family:'BIZ UDGothic',sans-serif;font-size:30px;font-weight:700;color:var(--ink);text-align:center;line-height:1.4}
@@ -155,7 +163,7 @@ input[type=file]{display:none}
 .nav-side-btn{width:64px;min-height:90px;font-size:15px !important;font-weight:700;line-height:1.6;text-align:center;padding:12px 8px;border-radius:10px;}
 
 /* Typing */
-.typing-area{background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:28px;text-align:center;margin-bottom:14px}
+.typing-area{background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:28px;text-align:center;margin-bottom:14px;height:390px;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow-y:auto}
 .typing-q{font-family:'BIZ UDGothic',sans-serif;font-size:26px;font-weight:700;margin-bottom:16px}
 .typing-input{width:100%;max-width:340px;padding:11px 16px;border:2px solid var(--border);border-radius:8px;font-size:17px;font-family:'BIZ UDGothic',sans-serif;background:var(--paper);color:var(--ink);text-align:center;outline:none;transition:border-color .2s}
 .typing-input:focus{border-color:var(--accent2)}
@@ -164,7 +172,7 @@ input[type=file]{display:none}
 .typing-ans{font-size:14px;margin-top:12px;min-height:20px;font-weight:600}
 
 /* Slide */
-.slide-card{background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:36px;text-align:center;min-height:230px;display:flex;flex-direction:column;align-items:center;justify-content:center;margin-bottom:14px;box-shadow:0 4px 20px var(--shadow);position:relative}
+.slide-card{background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:36px;text-align:center;height:390px;display:flex;flex-direction:column;align-items:center;justify-content:center;margin-bottom:14px;box-shadow:0 4px 20px var(--shadow);position:relative;overflow-y:auto}
 .slide-jp{font-family:'BIZ UDGothic',sans-serif;font-size:26px;font-weight:700;color:var(--muted);margin-bottom:12px}
 .slide-en{font-size:30px;font-weight:600;color:var(--ink);font-family:'BIZ UDGothic',sans-serif}
 .slide-speak{margin-top:18px}
@@ -371,6 +379,11 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
       <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">補足説明 (任意)</label>
       <textarea id="edit-note" rows="3" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:'BIZ UDGothic',sans-serif;background:var(--paper);color:var(--ink);outline:none;box-sizing:border-box;resize:vertical"></textarea>
     </div>
+    <div style="margin-bottom:20px">
+      <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">位置（全体の何番目）</label>
+      <input id="edit-position" type="number" min="1" oncontextmenu="return true;" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;font-family:'BIZ UDGothic',sans-serif;background:var(--paper);color:var(--ink);outline:none;box-sizing:border-box">
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">番号を変更すると、その位置に移動します</div>
+    </div>
     <div style="display:flex;gap:10px">
       <button onclick="document.getElementById('wh-editcard-modal').style.display='none'" style="flex:1;padding:10px;border-radius:8px;border:1.5px solid var(--border);background:var(--paper);cursor:pointer;font-family:'BIZ UDGothic',sans-serif">キャンセル</button>
       <button onclick="doEditCard()" style="flex:1;padding:10px;border-radius:8px;border:none;background:var(--accent2);color:#fff;cursor:pointer;font-family:'BIZ UDGothic',sans-serif;font-weight:600">保存</button>
@@ -397,6 +410,11 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
     <div style="margin-bottom:20px">
       <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">補足説明 (任意)</label>
       <textarea id="add-note" placeholder="例：可算名詞、複数形はapples" oncontextmenu="return true;" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;font-family:'BIZ UDGothic',sans-serif;background:var(--paper);color:var(--ink);outline:none;box-sizing:border-box;resize:vertical;min-height:70px"></textarea>
+    </div>
+    <div style="margin-bottom:20px">
+      <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">挿入位置（全体の何番目）</label>
+      <input id="add-position" type="number" min="1" placeholder="空欄なら現在のカードの直後" oncontextmenu="return true;" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;font-family:'BIZ UDGothic',sans-serif;background:var(--paper);color:var(--ink);outline:none;box-sizing:border-box">
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">例：1なら先頭、最後なら総数+1を入力</div>
     </div>
     <div style="display:flex;gap:10px">
       <button onclick="document.getElementById('wh-addcard-modal').style.display='none'" style="flex:1;padding:10px;border-radius:8px;border:1.5px solid var(--border);background:var(--paper);cursor:pointer;font-family:'BIZ UDGothic',sans-serif">キャンセル</button>
@@ -776,19 +794,25 @@ function tryAutoRestore(){
         setMode(mode);
         showToast('📱 他のデバイスの進捗を同期しました');
       }).catch(()=>{});
-      // 単語データも確認（編集・追加を同期）
-      window.fbLoadWords(lastKey).then(fbWords=>{
-        if(!fbWords||!fbWords.length)return;
-        // 単語数が違うか内容が違う場合は更新
-        const localStr=JSON.stringify(words);
-        const fbStr=JSON.stringify(fbWords);
-        if(localStr!==fbStr){
-          words=fbWords;
-          localStorage.setItem('wh_words_'+lastKey,JSON.stringify(words));
-          localStorage.setItem('wh_lastKey',lastKey); // 正しいキーを保持
-          updateStats();
-          setMode(mode);
-          showToast('📱 単語データを同期しました');
+      // 単語データも確認（編集・追加を同期、updatedAtで新しい方を採用）
+      window.fbLoadWordsFull(lastKey).then(fbDoc=>{
+        if(!fbDoc||!fbDoc.words||!fbDoc.words.length)return;
+        const fbWords=fbDoc.words;
+        const localUpdatedAt=Number(localStorage.getItem('wh_words_updatedAt_'+lastKey)||0);
+        const fbUpdatedAt=fbDoc.updatedAt||0;
+        // Firebaseの方が新しい場合のみ上書き
+        if(fbUpdatedAt>localUpdatedAt){
+          const localStr=JSON.stringify(words);
+          const fbStr=JSON.stringify(fbWords);
+          if(localStr!==fbStr){
+            words=fbWords;
+            localStorage.setItem('wh_words_'+lastKey,JSON.stringify(words));
+            localStorage.setItem('wh_words_updatedAt_'+lastKey,String(fbUpdatedAt));
+            localStorage.setItem('wh_lastKey',lastKey);
+            updateStats();
+            setMode(mode);
+            showToast('📱 単語データを同期しました');
+          }
         }
       }).catch(()=>{});
     }
@@ -1894,6 +1918,13 @@ function slideRegister(oi, type){
   }
 }
 
+// ボディクリックで自動再生停止（スライドモード・余白クリック時）
+document.addEventListener('click', function(e){
+  if(mode!=='slide' || !window._slideRunning) return;
+  if(e.target.closest('button,select,input,a,.bm-btn,.speak-btn,label')) return;
+  stopSlide();
+});
+
 function stopSlide(){
   // 停止時に現在のカードの学習日を記録
   if(window._slideRunning){
@@ -2087,10 +2118,12 @@ function showEditCardByOrig(oi){
   var en=document.getElementById('edit-en');
   var ph=document.getElementById('edit-ph');
   var note=document.getElementById('edit-note');
+  var pos=document.getElementById('edit-position');
   if(jp) jp.value=w.jp||'';
   if(en) en.value=w.en||'';
   if(ph) ph.value=w.ph||'';
   if(note) note.value=w.note||'';
+  if(pos) pos.value=oi+1;
   document.getElementById('wh-editcard-modal')._editOrig=oi;
   document.getElementById('wh-editcard-modal').style.display='flex';
 }
@@ -2105,10 +2138,12 @@ function showEditCard(){
   var en=document.getElementById('edit-en');
   var ph=document.getElementById('edit-ph');
   var note=document.getElementById('edit-note');
+  var pos=document.getElementById('edit-position');
   if(jp) jp.value=w.jp||'';
   if(en) en.value=w.en||'';
   if(ph) ph.value=w.ph||'';
   if(note) note.value=w.note||'';
+  if(pos) pos.value=w.orig+1;
   document.getElementById('wh-editcard-modal')._editOrig=w.orig;
   document.getElementById('wh-editcard-modal').style.display='flex';
 }
@@ -2121,22 +2156,48 @@ function doEditCard(){
   const en=(document.getElementById('edit-en')?.value||'').trim();
   const ph=(document.getElementById('edit-ph')?.value||'').trim();
   const note=(document.getElementById('edit-note')?.value||'').trim();
+  const posRaw=(document.getElementById('edit-position')?.value||'').trim();
   if(!jp||!en){alert('日本語と英語は必須です');return;}
   modal.style.display='none';
   words[oi]={...words[oi], jp, en, ph, note};
+
+  // 位置変更チェック
+  let newOi=oi;
+  if(posRaw){
+    const posNum=parseInt(posRaw,10);
+    if(!isNaN(posNum)&&posNum>=1){
+      const targetIdx=Math.min(posNum-1, words.length-1);
+      if(targetIdx!==oi){
+        const [moved]=words.splice(oi,1);
+        words.splice(targetIdx,0,moved);
+        newOi=targetIdx;
+      }
+    }
+  }
+
   saveProgress();
-  if(window.fbSaveWords) window.fbSaveWords(_dataKey, words);
+  const _editTs=Date.now();
+  localStorage.setItem('wh_words_updatedAt_'+_dataKey, String(_editTs));
   updateStats();
   if(mode==='flash')renderFlash();
   else if(mode==='type')renderType();
   else if(mode==='slide')renderSlide();
   else if(mode==='list')renderList();
-  showToast('カードを更新しました');
+  if(window.fbSaveWords){
+    showToast('保存中...');
+    window.fbSaveWords(_dataKey, words).then(function(){
+      showToast(newOi!==oi?'✅ カードを更新し、'+(newOi+1)+'番目に移動しました':'✅ カードを更新しました（クラウド保存済み）');
+    }).catch(function(){
+      showToast('⚠️ ローカルには保存済み、クラウド保存に失敗しました');
+    });
+  } else {
+    showToast(newOi!==oi?'カードを更新し、'+(newOi+1)+'番目に移動しました':'カードを更新しました');
+  }
 }
 
 function showAddCard(){
   // 入力欄をクリア
-  ['add-jp','add-en','add-ph','add-note'].forEach(function(id){
+  ['add-jp','add-en','add-ph','add-note','add-position'].forEach(function(id){
     var inp=document.getElementById(id);
     if(inp) inp.value='';
   });
@@ -2150,37 +2211,53 @@ function doAddCard(){
   const en=(document.getElementById('add-en')?.value||'').trim();
   const ph=(document.getElementById('add-ph')?.value||'').trim();
   const note=(document.getElementById('add-note')?.value||'').trim();
+  const posRaw=(document.getElementById('add-position')?.value||'').trim();
   if(!jp||!en){alert('日本語と英語の両方を入力してください');return;}
   document.getElementById('wh-addcard-modal').style.display='none';
-  // 現在のカードの直後に挿入
-  const insertAt=Math.min(getIdx()+1, words.length);
+  // 指定位置があればそこに、なければ現在のカードの直後に挿入
+  let insertAt;
+  if(posRaw){
+    const posNum=parseInt(posRaw,10);
+    if(isNaN(posNum)||posNum<1){
+      insertAt=Math.min(getIdx()+1, words.length);
+    } else {
+      insertAt=Math.min(posNum-1, words.length); // 1始まり→0始まりに変換
+    }
+  } else {
+    insertAt=Math.min(getIdx()+1, words.length);
+  }
   words.splice(insertAt, 0, {jp, en, ph, note});
   saveProgress();
+  const _addTs=Date.now();
+  localStorage.setItem('wh_words_updatedAt_'+_dataKey, String(_addTs));
   updateStats();
   if(mode==='flash')renderFlash();
   else if(mode==='type')renderType();
   else if(mode==='slide')renderSlide();
   else if(mode==='list')renderList();
-  showToast('カードを追加しました：'+jp+' / '+en);
+  if(window.fbSaveWords) window.fbSaveWords(_dataKey, words);
+  showToast('カードを追加しました（'+(insertAt+1)+'番目）：'+jp+' / '+en);
 }
 
 function saveToExcel(){
   if(!words.length){alert('データがありません');return;}
   try{
     const wb=XLSX.utils.book_new();
-    const data=words.map(w=>[w.jp, w.ph ? w.en+'\n'+w.ph : w.en]);
+    const data=words.map(w=>[w.jp, w.ph ? w.en+'\n'+w.ph : w.en, w.note||'']);
     const ws=XLSX.utils.aoa_to_sheet(data);
     // 折り返し設定（wrapText）
     const range=XLSX.utils.decode_range(ws['!ref']);
     for(let R=range.s.r;R<=range.e.r;R++){
-      const cell=ws[XLSX.utils.encode_cell({r:R,c:1})];
-      if(cell){
-        if(!cell.s) cell.s={};
-        cell.s.alignment={wrapText:true};
+      for(const C of [1,2]){
+        const cell=ws[XLSX.utils.encode_cell({r:R,c:C})];
+        if(cell){
+          if(!cell.s) cell.s={};
+          cell.s.alignment={wrapText:true};
+        }
       }
     }
     // 列幅設定
-    ws['!cols']=[{wch:20},{wch:40}];
+    ws['!cols']=[{wch:20},{wch:40},{wch:30}];
     XLSX.utils.book_append_sheet(wb, ws, 'Words');
     // ファイル名を現在のファイル名から取得
     const disp=document.getElementById('file-name-display')?.textContent||'wordholic';
