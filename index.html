@@ -234,6 +234,8 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
       <label class="btn" style="cursor:pointer" for="xl">📂 Excel読み込む</label>
       <input type="file" id="xl" accept=".xlsx,.xls,.csv" onchange="loadFile(this)">
       <button class="btn" onclick="showAddCard()">➕ カード追加</button>
+      <label class="btn" style="cursor:pointer" for="xl-append">📑 Excelから追加</label>
+      <input type="file" id="xl-append" accept=".xlsx,.xls,.csv" onchange="appendFromExcel(this)">
       <button class="btn" onclick="saveToExcel()">💾 Excel保存</button>
       <button class="btn" onclick="showStats()">📊 記録</button>
       <button class="btn" onclick="confirmReset()" title="進捗をリセット">🔄 リセット</button>
@@ -1129,6 +1131,67 @@ function loadDemo(){
   const restored=restoreProgress('demo');
   if(!restored){idxFlash=0;idxType=0;idxSlide=0;idxByFilter={};knownFlash=new Set();knownType=new Set();knownSlide=new Set();pronBM=new Set();memBM=new Set();studyDates={};filter='all';}
   init(restored);
+}
+
+function appendFromExcel(input){
+  const f=input.files[0]; if(!f) return;
+  const ext=f.name.split('.').pop().toLowerCase();
+  const reader=new FileReader();
+
+  function doAppend(newWords){
+    if(!newWords.length){ alert('追加できる単語が見つかりませんでした'); return; }
+    words=words.concat(newWords);
+    saveProgress();
+    localStorage.setItem('wh_words_updatedAt_'+_dataKey, String(Date.now()));
+    updateStats();
+    if(mode==='flash')renderFlash();
+    else if(mode==='type')renderType();
+    else if(mode==='slide')renderSlide();
+    else if(mode==='list')renderList();
+    if(window.fbSaveWords) window.fbSaveWords(_dataKey, words);
+    showToast(newWords.length+'件のカードを末尾に追加しました');
+    input.value='';
+  }
+
+  if(ext==='csv'){
+    reader.onload=e=>{
+      let text=e.target.result;
+      function parse(t){
+        const lines=t.split(/\r?\n/).filter(l=>l.trim());
+        const newWords=[];
+        for(const line of lines){
+          const cols=line.split(',');
+          if(cols[0]&&cols[1]){
+            const {en,ph}=parseEnPh(cols[1]);
+            const note=String(cols[2]||'').trim();
+            newWords.push({jp:String(cols[0]).trim(), en, ph, note});
+          }
+        }
+        doAppend(newWords);
+      }
+      if((text.match(/\ufffd/g)||[]).length>5){
+        const r2=new FileReader();
+        r2.onload=e2=>parse(e2.target.result);
+        r2.readAsText(f,'Shift-JIS');
+        return;
+      }
+      parse(text);
+    };
+    reader.readAsText(f,'UTF-8');
+  } else {
+    reader.onload=e=>{
+      const wb=XLSX.read(e.target.result,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const newWords=XLSX.utils.sheet_to_json(ws,{header:1,defval:''})
+        .filter(r=>r[0]&&r[1]).map(r=>{
+          const {en,ph}=parseEnPh(r[1]);
+          const note=String(r[2]||'').trim();
+          return {jp:String(r[0]).trim(), en, ph, note};
+        });
+      doAppend(newWords);
+    };
+    reader.readAsArrayBuffer(f);
+  }
 }
 
 function loadFile(input){
