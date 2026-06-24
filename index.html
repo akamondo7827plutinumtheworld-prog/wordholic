@@ -172,7 +172,7 @@ input[type=file]{display:none}
 .typing-ans{font-size:14px;margin-top:12px;min-height:20px;font-weight:600}
 
 /* Slide */
-.slide-card{background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:36px;text-align:center;height:390px;display:flex;flex-direction:column;align-items:center;justify-content:center;margin-bottom:14px;box-shadow:0 4px 20px var(--shadow);position:relative;overflow-y:auto}
+.slide-card{background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:28px;text-align:center;height:300px;display:flex;flex-direction:column;align-items:center;justify-content:center;margin-bottom:14px;box-shadow:0 4px 20px var(--shadow);position:relative;overflow-y:auto}
 .slide-jp{font-family:'BIZ UDGothic',sans-serif;font-size:26px;font-weight:700;color:var(--muted);margin-bottom:12px}
 .slide-en{font-size:30px;font-weight:600;color:var(--ink);font-family:'BIZ UDGothic',sans-serif}
 .slide-speak{margin-top:18px}
@@ -270,14 +270,11 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
       </label>
     </div>
 
-    <div class="stats-bar">
-      <div class="stat"><div class="stat-n" id="s-total">0</div><div class="stat-l">総単語数</div></div>
-      <div class="stat"><div class="stat-n pron" id="s-pron">0</div><div class="stat-l">🎤 発音</div></div>
-      <div class="stat"><div class="stat-n mem" id="s-mem">0</div><div class="stat-l">💡 記憶</div></div>
-      <div class="stat"><div class="stat-n" id="s-known-flash">0</div><div class="stat-l">flash済</div></div>
-      <div class="stat"><div class="stat-n" id="s-known-type">0</div><div class="stat-l">type済</div></div>
-      <div class="stat"><div class="stat-n" id="s-known-slide">0</div><div class="stat-l">slide済</div></div>
-      <div class="stat"><div class="stat-n" id="s-idx">1</div><div class="stat-l">現在</div></div>
+    <!-- stats IDs（非表示、updateStats()用） -->
+    <div style="display:none">
+      <div id="s-total">0</div><div id="s-pron">0</div><div id="s-mem">0</div>
+      <div id="s-known-flash">0</div><div id="s-known-type">0</div><div id="s-known-slide">0</div>
+      <div id="s-idx">1</div>
     </div>
 
     <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
@@ -317,7 +314,7 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
       </label>
     </div>
     <div id="mode-type" style="display:none"></div>
-    <div id="mode-slide" style="display:none"><div id="slide-card-wrap"></div></div>
+    <div id="mode-slide" style="display:none"><div id="slide-card-wrap"></div><div id="slide-note-wrap" style="display:none;margin-top:8px;padding:12px 16px;background:var(--cream);border:1.5px solid var(--border);border-radius:10px;font-size:16px;color:var(--ink);line-height:1.8;max-height:180px;overflow-y:auto"></div></div>
     <!-- 再生範囲コントロール（mode-slideの外・重なり防止） -->
     <div id="slide-controls-wrap" style="display:none">
       <div class="slide-controls">
@@ -1499,7 +1496,7 @@ function renderFlash(){
               <div class="card-word" style="font-family:'BIZ UDGothic',sans-serif">${w.en.replace(/\n/g,'<br>')}</div>
               <div class="card-phonetic">${w.ph||''}</div>
             </div>
-            ${w.note?'<div style="font-size:12px;color:var(--muted);margin-top:8px;text-align:left;padding:6px 12px;line-height:1.6;background:var(--cream);border-radius:8px;max-height:80px;overflow-y:auto;width:100%;box-sizing:border-box">'+w.note.replace(/\n/g,'<br>')+'</div>':''}
+            ${w.note?'<div style="font-size:15px;color:var(--muted);margin-top:8px;text-align:left;padding:6px 12px;line-height:1.6;background:var(--cream);border-radius:8px;max-height:80px;overflow-y:auto;width:100%;box-sizing:border-box">'+w.note.replace(/\n/g,'<br>')+'</div>':''}
             <div style="display:flex;justify-content:center;margin-top:10px" onclick="event.stopPropagation()">${speakBtnHtml(w.en)}</div>
           </div>
         </div>
@@ -1699,9 +1696,12 @@ function renderSlide(){
   const filt=getFiltered();
   const cardWrap=document.getElementById('slide-card-wrap');
   if(!cardWrap) return;
-  if(!filt.length){cardWrap.innerHTML=`<div class="empty-filter">📭 このフィルターに単語がありません</div>`;return;}
+  // 補足説明エリアを更新
+  if(!filt.length){cardWrap.innerHTML=`<div class="empty-filter">📭 このフィルターに単語がありません</div>`;const nw=document.getElementById('slide-note-wrap');if(nw)nw.style.display='none';return;}
   updateSlideRangeMax();
   const w=filt[Math.min(idx,filt.length-1)],oi=w.orig;
+  const noteWrap=document.getElementById('slide-note-wrap');
+  if(noteWrap) noteWrap.style.display='none'; // 外部noteWrapは非表示
   // 自動再生中はカード表示時に学習日を記録（saveProgressはデバウンスして頻度を抑える）
   if(window._slideRunning){
     recordSlideView(oi);
@@ -1716,7 +1716,7 @@ function renderSlide(){
       <div class="slide-jp">${w.jp.replace(/\n/g,'<br>')}</div>
       <div class="slide-en">${w.en.replace(/\n/g,"<br>")}</div>
       ${w.ph?`<div style="font-size:28px;color:var(--muted);font-family:'BIZ UDGothic',sans-serif;margin-top:4px;letter-spacing:1px">${w.ph}</div>`:''}
-      ${w.note?`<div style="font-size:13px;color:var(--muted);margin-top:10px;text-align:left;padding:8px 12px;line-height:1.7;background:var(--cream);border-radius:8px;max-height:100px;overflow-y:auto;width:100%;box-sizing:border-box;cursor:pointer;position:relative;z-index:10" onclick="event.stopPropagation();${['pron','mem','impt'].includes(filter)?'navigateAndSpeakOnce(1)':'recordSlideView(oi);navigate(1);if(!window._slideRunning)startSlide();'}" title="タップで次のカードへ">${w.note.replace(/\n/g,'<br>')}</div>`:''}
+
       <div class="slide-speak" style="position:relative;z-index:10" onclick="event.stopPropagation()">${speakBtnHtml(w.en,oi)}</div>
       <!-- 左右クリックゾーン -->
       <div style="position:absolute;top:0;left:0;width:50%;height:100%;cursor:pointer;display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px;opacity:0;transition:opacity 0.2s;z-index:5"
@@ -1738,6 +1738,7 @@ function renderSlide(){
       <button id="slide-stop-btn" style="flex:1;padding:14px 0;font-size:16px;font-weight:700;border-radius:10px;border:1.5px solid #e74c3c;background:#e74c3c;color:#fff;cursor:pointer;font-family:'BIZ UDGothic',sans-serif;display:none" onclick="stopSlide()">⏹ 停止</button>
       <button style="flex:1;padding:14px 0;font-size:20px;font-weight:700;border-radius:10px;border:1.5px solid var(--border);background:var(--card);color:var(--ink);cursor:pointer;font-family:'BIZ UDGothic',sans-serif" onclick="navigate(1)">次へ ▶</button>
     </div>
+    ${w.note?`<div style="margin-top:8px;padding:12px 16px;background:var(--cream);border:1.5px solid var(--border);border-radius:10px;font-size:16px;color:var(--ink);line-height:1.8;max-height:180px;overflow-y:auto">${w.note.replace(/\n/g,'<br>')}</div>`:''}
     <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
       <div style="flex:1;text-align:center;font-size:16px;font-weight:600;color:var(--accent2);cursor:pointer;padding:8px;border-radius:8px;border:1.5px solid var(--accent2)" onclick="jumpToCard()" title="番号を入力してジャンプ">${Math.min(idx,filt.length-1)+1} / ${filt.length} ✈</div>
       ${searchQuery?`<div style="font-size:12px;color:var(--muted);background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:6px 12px;white-space:nowrap">全体 <span style="font-weight:700;color:var(--ink)">${oi+1}</span> 枚目</div>`:''}
