@@ -2004,6 +2004,15 @@ function speakOnceAndStop(){
     const ctr=document.getElementById('overlap-counter');
     if(ctr){ ctr.textContent=(shadowTimes-count+1)+' / '+shadowTimes+' 回目'; ctr.style.display='block'; }
     const rate2=parseFloat(document.getElementById('rate-sl')?.value||1);
+    if(window.electronTTS){
+      // Electron環境
+      window._slideOnAudioEnd=function(){
+        window._slideOnAudioEnd=null;
+        setTimeout(function(){ repeatShadow(count-1,cb); }, SHADOW_PAUSE);
+      };
+      speak(w.en);
+      return;
+    }
     const utt=new SpeechSynthesisUtterance(w.en);
     utt.lang='en-US'; if(selectedVoice) utt.voice=selectedVoice; utt.rate=rate2; utt.volume=vol;
     var shDone=false;
