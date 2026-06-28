@@ -803,7 +803,6 @@ function restoreProgress(key){
     // 旧データ互換：数値キー→英語テキストキーへマイグレーション
     function migrateKeys(arr){
       if(!arr||!arr.length) return new Set();
-      // 数値なら words[i].en に変換、文字列ならそのまま
       return new Set(arr.map(function(k){
         return (typeof k==='number' && words[k]) ? words[k].en : k;
       }));
@@ -820,6 +819,9 @@ function restoreProgress(key){
     pronBM=migrateKeys(d.pronBM||[]);
     memBM=migrateKeys(d.memBM||[]);
     imptBM=migrateKeys(d.imptBM||[]);
+    knownFlash=migrateKeys(d.knownFlash||d.known||[]);
+    knownType=migrateKeys(d.knownType||[]);
+    knownSlide=migrateKeys(d.knownSlide||[]);
     studyCount=migrateObj(d.studyCount||{});
     studyDates=migrateObj(d.studyDates||{});
     // スライド設定を復元
@@ -1555,7 +1557,8 @@ function setMode(m){
 }
 
 function bmDotsHtml(oi){
-  return`<div class="bm-indicators">${pronBM.has(oi)?'<div class="bm-dot pron"></div>':''}${memBM.has(oi)?'<div class="bm-dot mem"></div>':''}</div>`;
+  const enKey=words[oi]?.en||'';
+  return`<div class="bm-indicators">${pronBM.has(enKey)?'<div class="bm-dot pron"></div>':''}${memBM.has(enKey)?'<div class="bm-dot mem"></div>':''}</div>`;
 }
 function bmRowHtml(oi){
   // oi は数値インデックス、BMキーは英語テキスト
@@ -1659,13 +1662,16 @@ function flipCard(){
 }
 
 function recordSlideView(oi){
-  const key=oi;
-  if(!studyDates[key]) studyDates[key]=[];
+  // oi は数値インデックス、キーは英語テキスト
+  const enKey=words[oi]?.en||String(oi);
+  if(!studyDates[enKey]) studyDates[enKey]=[];
   const today=getStudyDate();
-  if(!studyDates[key].includes(today)){
-    studyDates[key].push(today);
+  if(!studyDates[enKey].includes(today)){
+    studyDates[enKey].push(today);
     recordStudy();
   }
+  studyCount[enKey]=(studyCount[enKey]||0)+1;
+  knownSlide.add(enKey);
 }
 
 function navigate(d){
@@ -1749,16 +1755,15 @@ function showStats(){
 function markKnown(v){
   const filt=getFiltered();
   if(!filt.length)return;
-  const oi=filt[Math.min(idx,filt.length-1)].orig;
+  const w=filt[Math.min(idx,filt.length-1)];
+  const enKey=w.en; // 英語テキストキー
   if(v){
-    getKnown().add(oi);
+    getKnown().add(enKey);
     recordStudy();
-    studyCount[oi]=(studyCount[oi]||0)+1;
-    // 学習日付を記録
-    const doiKey=String(oi);
-    if(!studyDates[doiKey]) studyDates[doiKey]=[];
-    if(!studyDates[doiKey].includes(getStudyDate())) studyDates[doiKey].push(getStudyDate());
-  } else getKnown().delete(oi);
+    studyCount[enKey]=(studyCount[enKey]||0)+1;
+    if(!studyDates[enKey]) studyDates[enKey]=[];
+    if(!studyDates[enKey].includes(getStudyDate())) studyDates[enKey].push(getStudyDate());
+  } else getKnown().delete(enKey);
   updateStats();
   if(idx<filt.length-1)navigate(1);else renderFlash();
   saveProgress();
@@ -1802,7 +1807,7 @@ function checkType(){
   if(val===correct){
     inp.classList.add('correct');inp.classList.remove('wrong');
     ans.textContent='✓ 正解！';ans.style.color='#27ae60';
-    speak(w.en);knownType.add(w.orig);updateStats();
+    speak(w.en);knownType.add(w.en);updateStats();
     setTimeout(()=>navigate(1),1000);
   } else {
     inp.classList.add('wrong');inp.classList.remove('correct');
@@ -1941,7 +1946,8 @@ function startSlide(){
 function navigateAndSpeakOnce(d){
   const filt=getFiltered();
   if(!filt.length)return;
-  window._slideRunning=true;  // renderSlide前にtrueにして「停止」ボタンで描画
+  window._userStopped=false;  // 次へを押したら停止フラグをリセット
+  window._slideRunning=true;
   idx=((idx+d)+filt.length)%filt.length;
   updateStats();
   renderSlide();
@@ -1968,28 +1974,23 @@ function speakOnceAndStop(){
     window._slideRunning=false;
     const ctr=document.getElementById('overlap-counter');
     if(ctr) ctr.style.display='none';
-    // 発音練習・重点練習は止まる（練習のため）
-    const autoNext=['all','mem'].includes(filter);
+    // 停止ボタンが押された場合はカード移動せずそのまま止まる
+    if(window._userStopped){
+      window._userStopped=false;
+      return;
+    }
     const filt2=getFiltered();
     if(!filt2.length) return;
+    idx=(idx+1)%filt2.length;
+    updateStats();
+    saveProgress();
+    renderSlide();
+    // 発音練習・重点練習は止まる（練習のため）、それ以外は自動継続
+    const autoNext=['all','mem'].includes(filter);
     if(autoNext){
-      idx=(idx+1)%filt2.length;
-      updateStats();
-      saveProgress();
-      renderSlide();
-      // 停止ボタンが押されていなければ自動継続
-      if(!window._userStopped){
-        window._slideRunning=true;
-        speakOnceAndStop();
-      }
-    } else {
-      // 発音練習・重点練習・記憶以外は止まる
-      idx=(idx+1)%filt2.length;
-      updateStats();
-      saveProgress();
-      renderSlide();
+      window._slideRunning=true;
+      speakOnceAndStop();
     }
-    window._userStopped=false;
   }
 
   // オーバーラッピング：英語をcount回、PAUSE秒間隔で繰り返す
@@ -2333,12 +2334,13 @@ function _runSlide(){
 }
 
 function slideRegister(oi, type){
+  const enKey=words[oi]?.en||'';
   if(type==='speak'){
-    const already=pronBM.has(oi);
+    const already=pronBM.has(enKey);
     toggleBM('pron', oi);
     showToast(already ? '発音練習から外しました' : '✏️ 発音練習に登録しました');
   } else {
-    const already=memBM.has(oi);
+    const already=memBM.has(enKey);
     toggleBM('mem', oi);
     showToast(already ? '記憶から外しました' : '💡 記憶に登録しました');
   }
@@ -2746,13 +2748,13 @@ function clearSearch(){
 }
 
 function adjustStudyCount(oi, delta){
-  const cur=studyCount[oi]||0;
+  // oi は数値インデックス、キーは英語テキスト
+  const enKey = typeof oi==='number' ? (words[oi]?.en||String(oi)) : oi;
+  const cur=studyCount[enKey]||0;
   const next=Math.max(0, cur+delta);
-  if(next===0) delete studyCount[oi]; else studyCount[oi]=next;
-  // 学習済状態も連動
-  // adjustStudyCountはフラッシュモードの学習済と連動
-  if(next===0) knownFlash.delete(oi);
-  else knownFlash.add(oi);
+  if(next===0) delete studyCount[enKey]; else studyCount[enKey]=next;
+  if(next===0) knownFlash.delete(enKey);
+  else knownFlash.add(enKey);
   updateStats();
   saveProgress();
   renderList();
@@ -2776,7 +2778,7 @@ function deleteCard(oi){
   // wordsから削除
   words.splice(wIdx, 1);
   // origインデックスを振り直し（不要だが互換性のため）
-  words.forEach((w,i)=>w.orig=w.en);
+  // orig は数値インデックス（w.en はBMキーとして別管理）
   // 保存
   saveProgress();
   if(window.fbSaveWords) window.fbSaveWords(_dataKey, words);
@@ -2791,7 +2793,7 @@ function renderList(){
     const oi=w.orig; // 英語テキストキー
     const wIdx=words.findIndex(x=>x.en===oi); // 全体インデックス
     const globalNum=wIdx>=0?wIdx+1:i+1; // 全体何枚目
-    const dots=(pronBM.has(oi)?'<span class="bm-icon pron"></span>':'')+(memBM.has(oi)?'<span class="bm-icon mem"></span>':'');
+    const dots=(pronBM.has(w.en)?'<span class="bm-icon pron"></span>':'')+(memBM.has(w.en)?'<span class="bm-icon mem"></span>':'');
     const enEsc=oi.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     return`<tr>
       <td style="color:var(--muted)">${globalNum}</td>
@@ -2799,18 +2801,18 @@ function renderList(){
       <td style="font-family:'BIZ UDGothic',sans-serif;font-style:italic">${w.en}</td>
       <td><button class="list-speak-btn" onclick="speak('${enEsc}')">🔊</button></td>
       <td style="font-size:11px">
-        <span style="color:${knownFlash.has(oi)?'#27ae60':'#ccc'}">🃏</span>
-        <span style="color:${knownType.has(oi)?'#27ae60':'#ccc'}">⌨️</span>
-        <span style="color:${knownSlide.has(oi)?'#27ae60':'#ccc'}">▶️</span>
+        <span style="color:${knownFlash.has(w.en)?'#27ae60':'#ccc'}">🃏</span>
+        <span style="color:${knownType.has(w.en)?'#27ae60':'#ccc'}">⌨️</span>
+        <span style="color:${knownSlide.has(w.en)?'#27ae60':'#ccc'}">▶️</span>
       </td>
       <td style="font-size:12px;color:var(--muted)">
-        <span style="font-weight:600">${studyCount[oi]||0}</span>
+        <span style="font-weight:600">${studyCount[w.en]||0}</span>
         <button onclick="adjustStudyCount(${wIdx},1)" style="padding:2px 6px;font-size:11px;margin-left:4px;border:1px solid var(--border);border-radius:4px;cursor:pointer;background:var(--card)">+</button>
         <button onclick="adjustStudyCount(${wIdx},-1)" style="padding:2px 6px;font-size:11px;margin-left:2px;border:1px solid var(--border);border-radius:4px;cursor:pointer;background:var(--card)">-</button>
       </td>
       <td>
-        <button class="bm-btn ${pronBM.has(oi)?'on-pron':'off'}" style="padding:4px 10px;font-size:11px" onclick="toggleBM('pron',${wIdx})">🎤</button>
-        <button class="bm-btn ${memBM.has(oi)?'on-mem':'off'}" style="padding:4px 10px;font-size:11px;margin-left:4px" onclick="toggleBM('mem',${wIdx})">💡</button>
+        <button class="bm-btn ${pronBM.has(w.en)?'on-pron':'off'}" style="padding:4px 10px;font-size:11px" onclick="toggleBM('pron',${wIdx})">🎤</button>
+        <button class="bm-btn ${memBM.has(w.en)?'on-mem':'off'}" style="padding:4px 10px;font-size:11px;margin-left:4px" onclick="toggleBM('mem',${wIdx})">💡</button>
         <button style="padding:4px 10px;font-size:11px;margin-left:4px;border:1px solid var(--accent2);border-radius:14px;background:var(--card);color:var(--accent2);cursor:pointer" onclick="showEditCardByOrig(${wIdx})">✏️</button>
         <button style="padding:4px 10px;font-size:11px;margin-left:4px;border:1px solid var(--accent);border-radius:14px;background:var(--card);color:var(--accent);cursor:pointer" onclick="deleteCard(${wIdx})">🗑️</button>
       </td>
