@@ -2534,8 +2534,16 @@ function doJump(){
 function showEditCardByOrig(oi){
   // スライド自動再生中なら停止
   if(window._slideRunning) stopSlide();
-  const w=words[oi];
+  // oiが英語テキストの場合はインデックスを探す
+  var w, wIdx;
+  if(typeof oi==='number'){
+    w=words[oi]; wIdx=oi;
+  } else {
+    wIdx=words.findIndex(function(x){ return x.en===oi; });
+    w=wIdx>=0?words[wIdx]:null;
+  }
   if(!w) return;
+  oi=wIdx; // 以降はインデックスとして使う
   var jp=document.getElementById('edit-jp');
   var en=document.getElementById('edit-en');
   var ph=document.getElementById('edit-ph');
