@@ -1150,6 +1150,7 @@ function speakCurrent(){
 function speakBtnHtml(text,oi){
   const esc=text.replace(/"/g,'&quot;');
   const escSQ=text.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  const oiEscQ=String(oi||'').replace(/"/g,'&quot;');
   const isSlide=mode==='slide';
   const isOverlap=document.getElementById('slide-overlap')?.checked||false;
   const isFilterBM=['pron','mem','impt'].includes(filter);
@@ -1168,10 +1169,11 @@ function speakBtnHtml(text,oi){
         +'<svg viewBox="0 0 24 24" style="fill:#fff"><path d="'+iconPath+'"/></svg> '+stopLabel+'</button>';
     }
   }
-  const imptCls=imptBM.has(oi)?'on-impt':'off';
-  const imptLbl=imptBM.has(oi)?'重点中':'重点練習';
+  const enKey4BM=words[oi]?.en||'';
+  const imptCls=imptBM.has(enKey4BM)?'on-impt':'off';
+  const imptLbl=imptBM.has(enKey4BM)?'重点中':'重点練習';
   return '<div style="display:flex;gap:8px;justify-content:center;align-items:center">'
-    +'<button class="bm-btn '+imptCls+'" style="padding:9px 18px" onclick="event.stopPropagation();toggleBM(&quot;impt&quot;,'+oi+')">⭐ '+imptLbl+'</button>'
+    +'<button class="bm-btn '+imptCls+'" style="padding:9px 18px" onclick="event.stopPropagation();toggleBM(\'impt\','+oi+')">⭐ '+imptLbl+'</button>'
     +slideBtn
     +'<button class="speak-btn" data-text="'+esc+'" onclick="event.stopPropagation();if(window._slideRunning)stopSlide();speak(&quot;'+escSQ+'&quot;)">'
     +'<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg> 読み上げる</button>'
@@ -1387,21 +1389,21 @@ function loadFile(input){
 
 function getFiltered(){
   let base;
-  if(filter==='pron') base=words.map((w)=>({...w,orig:w.en})).filter(w=>pronBM.has(w.orig));
-  else if(filter==='mem') base=words.map((w)=>({...w,orig:w.en})).filter(w=>memBM.has(w.orig));
-  else if(filter==='impt') base=words.map((w)=>({...w,orig:w.en})).filter(w=>imptBM.has(w.orig));
+  if(filter==='pron') base=words.map((w,i)=>({...w,orig:i})).filter(w=>pronBM.has(w.en));
+  else if(filter==='mem') base=words.map((w,i)=>({...w,orig:i})).filter(w=>memBM.has(w.en));
+  else if(filter==='impt') base=words.map((w,i)=>({...w,orig:i})).filter(w=>imptBM.has(w.en));
   else if(filter==='today'){
     const today=getStudyDate();
-    base=words.map((w)=>({...w,orig:w.en})).filter(w=>(studyDates[w.orig]||[]).includes(today));
+    base=words.map((w,i)=>({...w,orig:i})).filter(w=>(studyDates[w.en]||[]).includes(today));
   }
   else if(filter==='yesterday'){
     const d=new Date();
     if(d.getHours()<2) d.setDate(d.getDate()-1);
     d.setDate(d.getDate()-1);
     const yesterday=d.toISOString().slice(0,10);
-    base=words.map((w)=>({...w,orig:w.en})).filter(w=>(studyDates[w.orig]||[]).includes(yesterday));
+    base=words.map((w,i)=>({...w,orig:i})).filter(w=>(studyDates[w.en]||[]).includes(yesterday));
   }
-  else base=words.map((w)=>({...w,orig:w.en}));
+  else base=words.map((w,i)=>({...w,orig:i}));
   if(searchQuery){
     const q=searchQuery.toLowerCase();
     base=base.filter(w=>w.jp.toLowerCase().includes(q)||w.en.toLowerCase().includes(q));
@@ -1556,24 +1558,29 @@ function bmDotsHtml(oi){
   return`<div class="bm-indicators">${pronBM.has(oi)?'<div class="bm-dot pron"></div>':''}${memBM.has(oi)?'<div class="bm-dot mem"></div>':''}</div>`;
 }
 function bmRowHtml(oi){
-  const ip=pronBM.has(oi),im=memBM.has(oi),sc=studyCount[oi]||0;
+  // oi は数値インデックス、BMキーは英語テキスト
+  const enKey=words[oi]?.en||'';
+  const ip=pronBM.has(enKey),im=memBM.has(enKey),sc=studyCount[enKey]||0;
   return`<div class="bm-row">
     <button class="bm-btn ${ip?'on-pron':'off'}" onclick="toggleBM('pron',${oi})">🎤 ${ip?'発音練習中':'発音練習に追加'}</button>
     <button class="bm-btn ${im?'on-mem':'off'}" onclick="toggleBM('mem',${oi})">💡 ${im?'記憶中':'記憶に追加'}</button>
-    <button class="bm-btn ${imptBM.has(oi)?'on-impt':'off'}" onclick="toggleBM('impt',${oi})">⭐ ${imptBM.has(oi)?'重点練習中':'重点練習に追加'}</button>
+    <button class="bm-btn ${imptBM.has(enKey)?'on-impt':'off'}" onclick="toggleBM('impt',${oi})">⭐ ${imptBM.has(enKey)?'重点練習中':'重点練習に追加'}</button>
     <div style="display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;background:var(--cream);border:1.5px solid var(--border);font-size:13px">
       <span>📚 学習回数: <strong>${sc}</strong></span>
-      ${sc>0?`<button onclick="event.stopPropagation();studyCount[${oi}]=Math.max(0,(studyCount[${oi}]||0)-1);saveProgress();renderFlash()" style="padding:2px 8px;border-radius:10px;border:1px solid var(--border);background:var(--paper);font-size:11px;cursor:pointer">-1</button>`:''}
-      ${sc>0?`<button onclick="event.stopPropagation();if(confirm('このカードの学習回数をリセットしますか？')){studyCount[${oi}]=0;saveProgress();renderFlash()}" style="padding:2px 8px;border-radius:10px;border:1px solid var(--border);background:var(--paper);font-size:11px;cursor:pointer">リセット</button>`:''}
+      ${sc>0?`<button onclick="event.stopPropagation();studyCount[words[${oi}]?.en]=Math.max(0,(studyCount[words[${oi}]?.en]||0)-1);saveProgress();renderFlash()" style="padding:2px 8px;border-radius:10px;border:1px solid var(--border);background:var(--paper);font-size:11px;cursor:pointer">-1</button>`:''}
+      ${sc>0?`<button onclick="event.stopPropagation();if(confirm('このカードの学習回数をリセットしますか？')){studyCount[words[${oi}]?.en]=0;saveProgress();renderFlash()}" style="padding:2px 8px;border-radius:10px;border:1px solid var(--border);background:var(--paper);font-size:11px;cursor:pointer">リセット</button>`:''}
     </div>
     <button onclick="event.stopPropagation();showEditCardByOrig(${oi})" style="padding:6px 16px;border-radius:20px;border:1.5px solid var(--accent2);background:var(--card);color:var(--accent2);font-size:13px;cursor:pointer;font-family:'BIZ UDGothic',sans-serif">✏️ カードを編集</button>
   </div>`;
 }
 
 function toggleBM(type,oi){
-  if(type==='pron'){if(pronBM.has(oi))pronBM.delete(oi);else pronBM.add(oi);}
-  else if(type==='mem'){if(memBM.has(oi))memBM.delete(oi);else memBM.add(oi);}
-  else if(type==='impt'){if(imptBM.has(oi))imptBM.delete(oi);else imptBM.add(oi);}
+  // oiは数値インデックス、BMキーは英語テキスト
+  const enKey=typeof oi==='number'?words[oi]?.en:oi;
+  if(!enKey) return;
+  if(type==='pron'){if(pronBM.has(enKey))pronBM.delete(enKey);else pronBM.add(enKey);}
+  else if(type==='mem'){if(memBM.has(enKey))memBM.delete(enKey);else memBM.add(enKey);}
+  else if(type==='impt'){if(imptBM.has(enKey))imptBM.delete(enKey);else imptBM.add(enKey);}
   updateStats();
   const filt=getFiltered();
   if(idx>=filt.length&&filt.length>0)idx=filt.length-1;
@@ -1622,7 +1629,7 @@ function renderFlash(){
     <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
       <div style="flex:1;text-align:center;font-size:16px;font-weight:600;color:var(--accent2);cursor:pointer;padding:8px;border-radius:8px;border:1.5px solid var(--accent2)" onclick="jumpToCard()" title="番号を入力してジャンプ">${Math.min(idx,filt.length-1)+1} / ${filt.length} ✈</div>
       ${searchQuery?`<div style="font-size:12px;color:var(--muted);background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:6px 12px;white-space:nowrap">全体 <span style="font-weight:700;color:var(--ink)">${oi+1}</span> 枚目</div>`:''}
-      <button style="padding:8px 12px;border-radius:8px;border:1.5px solid var(--accent);background:var(--card);color:var(--accent);font-size:14px;cursor:pointer" onclick="deleteCard(${oi})" title="このカードを削除">🗑️</button>
+      <button style="padding:8px 12px;border-radius:8px;border:1.5px solid var(--accent);background:var(--card);color:var(--accent);font-size:14px;cursor:pointer" onclick="deleteCard(words.findIndex(function(x){return x.en===oi;}))" title="このカードを削除">🗑️</button>
     </div>
   `;
   autoSpeak();
@@ -1779,7 +1786,7 @@ function renderType(){
     <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
       <div style="flex:1;text-align:center;font-size:16px;font-weight:600;color:var(--accent2);cursor:pointer;padding:8px;border-radius:8px;border:1.5px solid var(--accent2)" onclick="jumpToCard()" title="番号を入力してジャンプ">${Math.min(idx,filt.length-1)+1} / ${filt.length} ✈</div>
       ${searchQuery?`<div style="font-size:12px;color:var(--muted);background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:6px 12px;white-space:nowrap">全体 <span style="font-weight:700;color:var(--ink)">${oi+1}</span> 枚目</div>`:''}
-      <button style="padding:8px 12px;border-radius:8px;border:1.5px solid var(--accent);background:var(--card);color:var(--accent);font-size:14px;cursor:pointer" onclick="deleteCard(${oi})" title="このカードを削除">🗑️</button>
+      <button style="padding:8px 12px;border-radius:8px;border:1.5px solid var(--accent);background:var(--card);color:var(--accent);font-size:14px;cursor:pointer" onclick="deleteCard(words.findIndex(function(x){return x.en===oi;}))" title="このカードを削除">🗑️</button>
     </div>
   `;
   setTimeout(()=>{const i=document.getElementById('t-input');if(i)i.focus();},50);
@@ -1856,7 +1863,7 @@ function renderSlide(){
     <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
       <div style="flex:1;text-align:center;font-size:16px;font-weight:600;color:var(--accent2);cursor:pointer;padding:8px;border-radius:8px;border:1.5px solid var(--accent2)" onclick="jumpToCard()" title="番号を入力してジャンプ">${Math.min(idx,filt.length-1)+1} / ${filt.length} ✈</div>
       ${searchQuery?`<div style="font-size:12px;color:var(--muted);background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:6px 12px;white-space:nowrap">全体 <span style="font-weight:700;color:var(--ink)">${oi+1}</span> 枚目</div>`:''}
-      <button style="padding:8px 12px;border-radius:8px;border:1.5px solid var(--accent);background:var(--card);color:var(--accent);font-size:14px;cursor:pointer" onclick="deleteCard(${oi})" title="このカードを削除">🗑️</button>
+      <button style="padding:8px 12px;border-radius:8px;border:1.5px solid var(--accent);background:var(--card);color:var(--accent);font-size:14px;cursor:pointer" onclick="deleteCard(words.findIndex(function(x){return x.en===oi;}))" title="このカードを削除">🗑️</button>
     </div>
   `;
 }
@@ -2753,18 +2760,23 @@ function adjustStudyCount(oi, delta){
 
 // ── List ─────────────────────────────────────────────────
 function deleteCard(oi){
-  if(!confirm('このカードを削除しますか？\n「'+words[oi].jp+'」')) return;
-  // 進捗データからも削除
-  knownFlash.delete(oi);
-  knownType.delete(oi);
-  knownSlide.delete(oi);
-  pronBM.delete(oi);
-  memBM.delete(oi);
-  delete studyCount[oi];
+  // oiが英語テキストの場合はインデックスを探す
+  var wIdx = typeof oi==='number' ? oi : words.findIndex(function(x){ return x.en===oi; });
+  if(wIdx<0) return;
+  var enKey = words[wIdx].en; // 英語テキストキー
+  if(!confirm('このカードを削除しますか？\n「'+words[wIdx].jp+'」')) return;
+  // 進捗データからも削除（英語テキストキー）
+  knownFlash.delete(enKey);
+  knownType.delete(enKey);
+  knownSlide.delete(enKey);
+  pronBM.delete(enKey);
+  memBM.delete(enKey);
+  delete studyCount[enKey];
+  delete studyDates[enKey];
   // wordsから削除
-  words.splice(oi, 1);
-  // origインデックスを振り直し
-  words.forEach((w,i)=>w.orig=i);
+  words.splice(wIdx, 1);
+  // origインデックスを振り直し（不要だが互換性のため）
+  words.forEach((w,i)=>w.orig=w.en);
   // 保存
   saveProgress();
   if(window.fbSaveWords) window.fbSaveWords(_dataKey, words);
@@ -2776,13 +2788,16 @@ function renderList(){
   const filt=getFiltered(),el=document.getElementById('mode-list');
   if(!filt.length){el.innerHTML=`<div class="empty-filter">📭 このフィルターに単語がありません</div>`;return;}
   const rows=filt.map((w,i)=>{
-    const oi=w.orig;
+    const oi=w.orig; // 英語テキストキー
+    const wIdx=words.findIndex(x=>x.en===oi); // 全体インデックス
+    const globalNum=wIdx>=0?wIdx+1:i+1; // 全体何枚目
     const dots=(pronBM.has(oi)?'<span class="bm-icon pron"></span>':'')+(memBM.has(oi)?'<span class="bm-icon mem"></span>':'');
+    const enEsc=oi.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     return`<tr>
-      <td style="color:var(--muted)">${i+1}</td>
+      <td style="color:var(--muted)">${globalNum}</td>
       <td style="font-family:'BIZ UDGothic',sans-serif;cursor:pointer" onclick="idx=${i};setMode('flash')">${dots}${w.jp}</td>
       <td style="font-family:'BIZ UDGothic',sans-serif;font-style:italic">${w.en}</td>
-      <td><button class="list-speak-btn" onclick="speak('${w.en.replace(/'/g,"\\'")}')">🔊</button></td>
+      <td><button class="list-speak-btn" onclick="speak('${enEsc}')">🔊</button></td>
       <td style="font-size:11px">
         <span style="color:${knownFlash.has(oi)?'#27ae60':'#ccc'}">🃏</span>
         <span style="color:${knownType.has(oi)?'#27ae60':'#ccc'}">⌨️</span>
@@ -2790,14 +2805,14 @@ function renderList(){
       </td>
       <td style="font-size:12px;color:var(--muted)">
         <span style="font-weight:600">${studyCount[oi]||0}</span>
-        <button onclick="adjustStudyCount(${oi},1)" style="padding:2px 6px;font-size:11px;margin-left:4px;border:1px solid var(--border);border-radius:4px;cursor:pointer;background:var(--card)">+</button>
-        <button onclick="adjustStudyCount(${oi},-1)" style="padding:2px 6px;font-size:11px;margin-left:2px;border:1px solid var(--border);border-radius:4px;cursor:pointer;background:var(--card)">-</button>
+        <button onclick="adjustStudyCount(${wIdx},1)" style="padding:2px 6px;font-size:11px;margin-left:4px;border:1px solid var(--border);border-radius:4px;cursor:pointer;background:var(--card)">+</button>
+        <button onclick="adjustStudyCount(${wIdx},-1)" style="padding:2px 6px;font-size:11px;margin-left:2px;border:1px solid var(--border);border-radius:4px;cursor:pointer;background:var(--card)">-</button>
       </td>
       <td>
-        <button class="bm-btn ${pronBM.has(oi)?'on-pron':'off'}" style="padding:4px 10px;font-size:11px" onclick="toggleBM('pron',${oi})">🎤</button>
-        <button class="bm-btn ${memBM.has(oi)?'on-mem':'off'}" style="padding:4px 10px;font-size:11px;margin-left:4px" onclick="toggleBM('mem',${oi})">💡</button>
-        <button style="padding:4px 10px;font-size:11px;margin-left:4px;border:1px solid var(--accent2);border-radius:14px;background:var(--card);color:var(--accent2);cursor:pointer" onclick="showEditCardByOrig(${oi})">✏️</button>
-        <button style="padding:4px 10px;font-size:11px;margin-left:4px;border:1px solid var(--accent);border-radius:14px;background:var(--card);color:var(--accent);cursor:pointer" onclick="deleteCard(${oi})">🗑️</button>
+        <button class="bm-btn ${pronBM.has(oi)?'on-pron':'off'}" style="padding:4px 10px;font-size:11px" onclick="toggleBM('pron',${wIdx})">🎤</button>
+        <button class="bm-btn ${memBM.has(oi)?'on-mem':'off'}" style="padding:4px 10px;font-size:11px;margin-left:4px" onclick="toggleBM('mem',${wIdx})">💡</button>
+        <button style="padding:4px 10px;font-size:11px;margin-left:4px;border:1px solid var(--accent2);border-radius:14px;background:var(--card);color:var(--accent2);cursor:pointer" onclick="showEditCardByOrig(${wIdx})">✏️</button>
+        <button style="padding:4px 10px;font-size:11px;margin-left:4px;border:1px solid var(--accent);border-radius:14px;background:var(--card);color:var(--accent);cursor:pointer" onclick="deleteCard(${wIdx})">🗑️</button>
       </td>
     </tr>`;
   }).join('');
