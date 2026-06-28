@@ -2026,7 +2026,8 @@ function speakOnceAndStop(){
 
   const shadowing=document.getElementById('slide-shadow')?.checked||false;
   const shadowTimes=parseInt(document.getElementById('slide-shadow-times')?.value||'1');
-  const SHADOW_PAUSE=Math.max((w.en.length*80)+500, 1000);
+  // SHADOW_PAUSEは読み上げ後に実際の時間を計測して設定
+  var SHADOW_PAUSE=Math.max((w.en.length*80)+500, 2000);
 
   function repeatShadow(count, cb){
     if(!window._slideRunning){ finishOnce(); return; }
@@ -2035,20 +2036,29 @@ function speakOnceAndStop(){
     if(ctr){ ctr.textContent=(shadowTimes-count+1)+' / '+shadowTimes+' 回目'; ctr.style.display='block'; }
     const rate2=parseFloat(document.getElementById('rate-sl')?.value||1);
     if(window.electronTTS){
-      // Electron環境
+      // Electron環境：読み上げ時間を計測して+2秒の間隔を設定
+      var shElecStart=Date.now();
       window._slideOnAudioEnd=function(){
         window._slideOnAudioEnd=null;
-        setTimeout(function(){ repeatShadow(count-1,cb); }, SHADOW_PAUSE);
+        const spokenMs=Date.now()-shElecStart;
+        const pause=Math.max(spokenMs+2000, 2000);
+        setTimeout(function(){ repeatShadow(count-1,cb); }, pause);
       };
+      shElecStart=Date.now();
       speak(w.en);
       return;
     }
     const utt=new SpeechSynthesisUtterance(w.en);
     utt.lang='en-US'; if(selectedVoice) utt.voice=selectedVoice; utt.rate=rate2; utt.volume=vol;
     var shDone=false;
+    var shStart=Date.now();
+    utt.onstart=function(){ shStart=Date.now(); };
     utt.onend=function(){
       if(shDone) return; shDone=true;
-      setTimeout(function(){ repeatShadow(count-1,cb); }, SHADOW_PAUSE);
+      // 実際の読み上げ時間＋2秒を間隔にする
+      const spokenMs=Date.now()-shStart;
+      const pause=Math.max(spokenMs+2000, 2000);
+      setTimeout(function(){ repeatShadow(count-1,cb); }, pause);
     };
     utt.onerror=function(e){
       if(shDone) return; shDone=true;
