@@ -45,9 +45,9 @@ document.addEventListener('DOMContentLoaded', function(){
       if(!id){id='device_'+Math.random().toString(36).slice(2);localStorage.setItem('wh_device_id',id);}
       return id;
     })();
-    window.fbSaveProgress=function(k,d){if(!k)return Promise.resolve();return db.collection('progress').doc(k).set(Object.assign({},d,{updatedAt:Date.now(),deviceId:did})).catch(function(){});};
+    window.fbSaveProgress=function(k,d){if(!k)return Promise.resolve();return db.collection('progress').doc(k).set(Object.assign({},d,{updatedAt:Date.now(),deviceId:did})).catch(function(err){console.error('fbSaveProgress failed:',err);if(window.showToast)window.showToast('⚠️ クラウド保存に失敗しました（この端末には保存済み）');});};
     window.fbLoadProgress=function(k){if(!k)return Promise.resolve(null);return db.collection('progress').doc(k).get().then(function(s){return s.exists?s.data():null;}).catch(function(){return null;});};
-    window.fbSaveWords=function(k,w){if(!k)return Promise.resolve();return db.collection('words').doc(k).set({words:w,updatedAt:Date.now()}).catch(function(){});};
+    window.fbSaveWords=function(k,w){if(!k)return Promise.resolve();return db.collection('words').doc(k).set({words:w,updatedAt:Date.now()}).catch(function(err){console.error('fbSaveWords failed:',err);if(window.showToast)window.showToast('⚠️ クラウド保存に失敗しました（この端末には保存済み）');});};
     window.fbLoadWords=function(k){if(!k)return Promise.resolve(null);return db.collection('words').doc(k).get().then(function(s){return s.exists?s.data().words:null;}).catch(function(){return null;});};
     window.fbLoadWordsFull=function(k){if(!k)return Promise.resolve(null);return db.collection('words').doc(k).get().then(function(s){return s.exists?s.data():null;}).catch(function(){return null;});};
     window.fbReady=true;
@@ -258,6 +258,7 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
       <button class="btn" onclick="exportBackup()" title="セーブデータをJSONで書き出す" style="background:var(--accent2);color:#fff;border-color:var(--accent2)">📤 バックアップ</button>
       <label class="btn" style="cursor:pointer;background:#27ae60;color:#fff;border-color:#27ae60" title="JSONバックアップを読み込む" for="backup-input">📥 復元</label>
       <input type="file" id="backup-input" accept=".json" style="display:none" onchange="importBackup(this)">
+      <button class="btn" onclick="restoreFromAutoBackup()" title="同期などの前に自動保存された履歴から復元">🕐 自動履歴から復元</button>
     </div>
   </div>
 
@@ -418,7 +419,7 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
     </div>
     <div style="margin-bottom:20px">
       <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">補足説明 (任意)</label>
-      <textarea id="edit-note" rows="3" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:'BIZ UDGothic',sans-serif;background:var(--paper);color:var(--ink);outline:none;box-sizing:border-box;resize:vertical"></textarea>
+      <textarea id="edit-note" rows="9" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:'BIZ UDGothic',sans-serif;background:var(--paper);color:var(--ink);outline:none;box-sizing:border-box;resize:vertical"></textarea>
     </div>
     <div style="margin-bottom:20px">
       <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">位置（全体の何番目）</label>
@@ -450,7 +451,7 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
     </div>
     <div style="margin-bottom:20px">
       <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">補足説明 (任意)</label>
-      <textarea id="add-note" placeholder="例：可算名詞、複数形はapples" oncontextmenu="return true;" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;font-family:'BIZ UDGothic',sans-serif;background:var(--paper);color:var(--ink);outline:none;box-sizing:border-box;resize:vertical;min-height:70px"></textarea>
+      <textarea id="add-note" rows="9" placeholder="例：可算名詞、複数形はapples" oncontextmenu="return true;" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;font-family:'BIZ UDGothic',sans-serif;background:var(--paper);color:var(--ink);outline:none;box-sizing:border-box;resize:vertical;min-height:210px"></textarea>
     </div>
     <div style="margin-bottom:20px">
       <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">挿入位置（全体の何番目）</label>
@@ -599,12 +600,16 @@ function debugSync(){
   alert(info.join('\n'));
 }
 
-function applyFbData(key, fbData, fbWords){
-  // 単語データを更新
-  if(fbWords&&fbWords.length){
+function applyFbData(key, fbData, fbWords, fbWordsUpdatedAt){
+  autoBackupSnapshot(key, '同期前');
+  // 単語データを更新（Firebase側が更新日時で見て古くない場合のみ上書き。ローカルの追加分を守る）
+  const localWordsUpdatedAt=Number(localStorage.getItem('wh_words_updatedAt_'+key)||0);
+  const fbWordsAt=Number(fbWordsUpdatedAt||0);
+  if(fbWords&&fbWords.length&&fbWordsAt>=localWordsUpdatedAt){
     words=fbWords;
     _dataKey=key;
     localStorage.setItem('wh_words_'+key, JSON.stringify(words));
+    localStorage.setItem('wh_words_updatedAt_'+key, String(fbWordsAt||Date.now()));
     localStorage.setItem('wh_lastKey', key);
     document.getElementById('main').style.display='block';
     updateStats();
@@ -613,8 +618,10 @@ function applyFbData(key, fbData, fbWords){
     else if(mode==='slide')renderSlide();
     else if(mode==='list')renderList();
   }
-  // 進捗を更新（同期ボタンはFirebaseを常に優先）
-  if(fbData&&fbData.updatedAt){
+  // 進捗を更新（新しい方（updatedAtが大きい方）を採用する。Firebase側が古い場合はローカルを保持）
+  const localProgRaw=localStorage.getItem('wh_prog_'+key);
+  const localUpdatedAt=localProgRaw?(JSON.parse(localProgRaw).updatedAt||0):0;
+  if(fbData&&fbData.updatedAt&&fbData.updatedAt>=localUpdatedAt){
     _dataKey=key;
     idxFlash=fbData.idxFlash||0;
     idxType=fbData.idxType||0;
@@ -683,10 +690,18 @@ function manualSync(){
 
   Promise.all([
     window.fbLoadProgress(key).catch(function(){return null;}),
-    window.fbLoadWords(key).catch(function(){return null;})
+    window.fbLoadWordsFull(key).catch(function(){return null;})
   ]).then(function(results){
     if(btn){btn.textContent='☁️ 同期';btn.disabled=false;}
-    applyFbData(key, results[0], results[1]);
+    const fbWordsDoc=results[1];
+    const applied=applyFbData(key, results[0], fbWordsDoc&&fbWordsDoc.words, fbWordsDoc&&fbWordsDoc.updatedAt);
+    if(!applied){
+      showToast('ℹ️ このデータは既に最新です（クラウド側は反映しませんでした）');
+      const mbtn4=document.getElementById('mobile-sync-btn');
+      if(mbtn4){mbtn4.textContent='☁️ 同期';mbtn4.disabled=false;}
+      // ローカルの方が新しい場合はこちらからFirebaseへ念のため再送しておく
+      saveProgress();
+    }
   }).catch(function(e){
     if(btn){btn.textContent='☁️ 同期';btn.disabled=false;}
     const mbtn2=document.getElementById('mobile-sync-btn');
@@ -696,6 +711,48 @@ function manualSync(){
 }
 
 // ── バックアップ書き出し・復元 ──────────────────────────────
+// ── 自動バックアップ（同期などデータ上書きの直前に自動保存。別のキーに保存するので通常の保存では消えない）──
+function autoBackupSnapshot(key, label){
+  try{
+    if(!key) return;
+    const prog=localStorage.getItem('wh_prog_'+key);
+    const wordsRaw=localStorage.getItem('wh_words_'+key);
+    if(!prog && !wordsRaw) return;
+    let list=[];
+    try{ list=JSON.parse(localStorage.getItem('wh_autobackups')||'[]'); }catch(e){ list=[]; }
+    list.unshift({key:key, label:label||'', ts:Date.now(), prog:prog, words:wordsRaw});
+    // 同じキーで直近1分以内の重複は間引きつつ、最大8件まで保持
+    const deduped=[];
+    for(const item of list){
+      if(deduped.some(function(d){return d.key===item.key && Math.abs(d.ts-item.ts)<60000;})) continue;
+      deduped.push(item);
+      if(deduped.length>=8) break;
+    }
+    localStorage.setItem('wh_autobackups', JSON.stringify(deduped));
+  }catch(e){}
+}
+
+function restoreFromAutoBackup(){
+  let list=[];
+  try{ list=JSON.parse(localStorage.getItem('wh_autobackups')||'[]'); }catch(e){}
+  if(!list.length){ showToast('❌ 自動バックアップの履歴がありません'); return; }
+  const lines=list.map(function(item,i){
+    const d=new Date(item.ts);
+    const ts=(d.getMonth()+1)+'/'+d.getDate()+' '+d.getHours()+':'+String(d.getMinutes()).padStart(2,'0');
+    return (i+1)+': '+ts+'（'+(item.label||'保存')+' / '+item.key+'）';
+  });
+  const ans=prompt('復元したい番号を入力してください\n\n'+lines.join('\n'));
+  const n=parseInt(ans,10);
+  if(!n||n<1||n>list.length) return;
+  const item=list[n-1];
+  if(!confirm('この時点（'+lines[n-1]+'）に復元しますか？\n現在のセーブデータは上書きされます。')) return;
+  if(item.prog) localStorage.setItem('wh_prog_'+item.key, item.prog);
+  if(item.words) localStorage.setItem('wh_words_'+item.key, item.words);
+  localStorage.setItem('wh_lastKey', item.key);
+  showToast('✅ 復元しました。ページをリロードします...');
+  setTimeout(function(){location.reload();}, 1000);
+}
+
 function exportBackup(){
   // localStorageのwh_で始まる全キーを収集
   const data={};
@@ -861,9 +918,14 @@ function tryAutoRestore(){
         }
         return; // タイムアウト
       }
+      // 起動時に念のためローカルの状態をスナップショット保存（Firebase側が古くても復元できるように）
+      autoBackupSnapshot(lastKey, '起動時');
       window.fbLoadProgress(lastKey).then(fbData=>{
         if(!fbData||!fbData.updatedAt)return;
-        // Firebaseのデータを常に適用（複数デバイス同期）
+        // ローカルより新しい場合のみ適用（複数デバイス同期。古いFirebaseデータで上書きしない）
+        const localRaw=localStorage.getItem('wh_prog_'+lastKey);
+        const localAt=localRaw?(JSON.parse(localRaw).updatedAt||0):0;
+        if(fbData.updatedAt<localAt)return;
         idxFlash=fbData.idxFlash||0;
         idxType=fbData.idxType||0;
         idxSlide=fbData.idxSlide||0;
