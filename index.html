@@ -539,6 +539,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 <script>
 let words=[], pronBM=new Set(), memBM=new Set(), imptBM=new Set(), studyCount={}, studyDates={}, searchQuery='';
 let idxFlash=0, idxType=0, idxSlide=0;
+let idxBeforeSearch=null; // 検索開始時点のidxを退避（クリア時に復元するため）
 let idxByFilter={}; // フィルター別idx
 function getIdxKey(){ return mode+'_'+filter; }
 function getIdx(){
@@ -2780,7 +2781,12 @@ function saveToExcel(){
 }
 
 function doSearch(q){
+  const wasEmpty=!searchQuery;
   searchQuery=q.trim();
+  if(wasEmpty&&searchQuery&&idxBeforeSearch===null){
+    // 検索を開始した瞬間のカード位置を退避
+    idxBeforeSearch={mode:mode, idxFlash:idxFlash, idxType:idxType, idxSlide:idxSlide};
+  }
   const btn=document.getElementById('search-clear-btn');
   if(btn) btn.style.display=searchQuery?'':'none';
   // 検索時はidxをリセット（フラッシュはリセットしない）
@@ -2799,9 +2805,15 @@ function clearSearch(){
   if(inp) inp.value='';
   const btn=document.getElementById('search-clear-btn');
   if(btn) btn.style.display='none';
-  if(mode==='flash')idxFlash=0;
+  if(idxBeforeSearch&&idxBeforeSearch.mode===mode){
+    // 検索開始時のカードに戻す（1枚目にはリセットしない）
+    idxFlash=idxBeforeSearch.idxFlash;
+    idxType=idxBeforeSearch.idxType;
+    idxSlide=idxBeforeSearch.idxSlide;
+  }else if(mode==='flash')idxFlash=0;
   else if(mode==='type')idxType=0;
   else idxSlide=0;
+  idxBeforeSearch=null;
   updateStats();
   if(mode==='flash')renderFlash();
   else if(mode==='type')renderType();
