@@ -45,9 +45,9 @@ document.addEventListener('DOMContentLoaded', function(){
       if(!id){id='device_'+Math.random().toString(36).slice(2);localStorage.setItem('wh_device_id',id);}
       return id;
     })();
-    window.fbSaveProgress=function(k,d){if(!k)return Promise.resolve();return db.collection('progress').doc(k).set(Object.assign({},d,{updatedAt:Date.now(),deviceId:did})).catch(function(err){console.error('fbSaveProgress failed:',err);if(window.showToast)window.showToast('⚠️ クラウド保存に失敗しました（この端末には保存済み）');});};
+    window.fbSaveProgress=function(k,d){if(!k)return Promise.resolve();return db.collection('progress').doc(k).set(Object.assign({},d,{updatedAt:firebase.firestore.FieldValue.serverTimestamp(),deviceId:did})).catch(function(err){console.error('fbSaveProgress failed:',err);if(window.showToast)window.showToast('⚠️ クラウド保存に失敗しました（この端末には保存済み）');});};
     window.fbLoadProgress=function(k){if(!k)return Promise.resolve(null);return db.collection('progress').doc(k).get().then(function(s){return s.exists?s.data():null;}).catch(function(){return null;});};
-    window.fbSaveWords=function(k,w){if(!k)return Promise.resolve();return db.collection('words').doc(k).set({words:w,updatedAt:Date.now()}).catch(function(err){console.error('fbSaveWords failed:',err);if(window.showToast)window.showToast('⚠️ クラウド保存に失敗しました（この端末には保存済み）');});};
+    window.fbSaveWords=function(k,w){if(!k)return Promise.resolve();return db.collection('words').doc(k).set({words:w,updatedAt:firebase.firestore.FieldValue.serverTimestamp()}).catch(function(err){console.error('fbSaveWords failed:',err);if(window.showToast)window.showToast('⚠️ クラウド保存に失敗しました（この端末には保存済み）');});};
     window.fbLoadWords=function(k){if(!k)return Promise.resolve(null);return db.collection('words').doc(k).get().then(function(s){return s.exists?s.data().words:null;}).catch(function(){return null;});};
     window.fbLoadWordsFull=function(k){if(!k)return Promise.resolve(null);return db.collection('words').doc(k).get().then(function(s){return s.exists?s.data():null;}).catch(function(){return null;});};
     window.fbReady=true;
@@ -539,9 +539,15 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 <script>
 let words=[], pronBM=new Set(), memBM=new Set(), imptBM=new Set(), studyCount={}, studyDates={}, searchQuery='';
 let idxFlash=0, idxType=0, idxSlide=0;
-let idxBeforeSearch=null; // 検索開始時点のidxを退避（クリア時に復元するため）
+function fbTimeToMillis(v){
+  if(!v) return 0;
+  if(typeof v==='number') return v;
+  if(typeof v.toMillis==='function') return v.toMillis();
+  if(typeof v.seconds==='number') return v.seconds*1000+((v.nanoseconds||0)/1e6);
+  return 0;
+}
 let idxByFilter={}; // フィルター別idx
-function getIdxKey(){ return mode+'_'+filter; }
+function getIdxKey(){ return mode+'_'+filter+(searchQuery?'_search':''); }
 function getIdx(){
   const k=getIdxKey();
   if(idxByFilter[k]!==undefined) return idxByFilter[k];
@@ -603,6 +609,8 @@ function debugSync(){
 
 function applyFbData(key, fbData, fbWords, fbWordsUpdatedAt){
   autoBackupSnapshot(key, '同期前');
+  if(fbData&&fbData.updatedAt) fbData.updatedAt=fbTimeToMillis(fbData.updatedAt);
+  fbWordsUpdatedAt=fbTimeToMillis(fbWordsUpdatedAt);
   // 単語データを更新（Firebase側が更新日時で見て古くない場合のみ上書き。ローカルの追加分を守る）
   const localWordsUpdatedAt=Number(localStorage.getItem('wh_words_updatedAt_'+key)||0);
   const fbWordsAt=Number(fbWordsUpdatedAt||0);
@@ -923,6 +931,7 @@ function tryAutoRestore(){
       autoBackupSnapshot(lastKey, '起動時');
       window.fbLoadProgress(lastKey).then(fbData=>{
         if(!fbData||!fbData.updatedAt)return;
+        fbData.updatedAt=fbTimeToMillis(fbData.updatedAt);
         // ローカルより新しい場合のみ適用（複数デバイス同期。古いFirebaseデータで上書きしない）
         const localRaw=localStorage.getItem('wh_prog_'+lastKey);
         const localAt=localRaw?(JSON.parse(localRaw).updatedAt||0):0;
@@ -950,7 +959,7 @@ function tryAutoRestore(){
         if(!fbDoc||!fbDoc.words||!fbDoc.words.length)return;
         const fbWords=fbDoc.words;
         const localUpdatedAt=Number(localStorage.getItem('wh_words_updatedAt_'+lastKey)||0);
-        const fbUpdatedAt=fbDoc.updatedAt||0;
+        const fbUpdatedAt=fbTimeToMillis(fbDoc.updatedAt);
         // Firebaseの方が新しい場合のみ上書き
         if(fbUpdatedAt>localUpdatedAt){
           const localStr=JSON.stringify(words);
@@ -1386,6 +1395,10 @@ function loadFile(input){
       if(window.fbLoadProgress){
         window.fbLoadProgress(key).then(function(fbData){
           if(!fbData||!fbData.updatedAt)return;
+          fbData.updatedAt=fbTimeToMillis(fbData.updatedAt);
+          const localRaw0=localStorage.getItem('wh_prog_'+key);
+          const localAt0=localRaw0?(JSON.parse(localRaw0).updatedAt||0):0;
+          if(fbData.updatedAt<localAt0)return;
           idxFlash=fbData.idxFlash||0;
           idxType=fbData.idxType||0;
           idxSlide=fbData.idxSlide||0;
@@ -1425,6 +1438,10 @@ function loadFile(input){
       if(window.fbLoadProgress){
         window.fbLoadProgress(key).then(function(fbData){
           if(!fbData||!fbData.updatedAt)return;
+          fbData.updatedAt=fbTimeToMillis(fbData.updatedAt);
+          const localRaw0=localStorage.getItem('wh_prog_'+key);
+          const localAt0=localRaw0?(JSON.parse(localRaw0).updatedAt||0):0;
+          if(fbData.updatedAt<localAt0)return;
           idxFlash=fbData.idxFlash||0;
           idxType=fbData.idxType||0;
           idxSlide=fbData.idxSlide||0;
@@ -2781,17 +2798,12 @@ function saveToExcel(){
 }
 
 function doSearch(q){
-  const wasEmpty=!searchQuery;
   searchQuery=q.trim();
-  if(wasEmpty&&searchQuery&&idxBeforeSearch===null){
-    // 検索を開始した瞬間のカード位置を退避
-    idxBeforeSearch={mode:mode, idxFlash:idxFlash, idxType:idxType, idxSlide:idxSlide};
-  }
   const btn=document.getElementById('search-clear-btn');
   if(btn) btn.style.display=searchQuery?'':'none';
-  // 検索時はidxをリセット（フラッシュはリセットしない）
-  if(mode==='type')idxType=0;
-  else if(mode==='slide')idxSlide=0;
+  // 範囲外なら末尾にクランプ（idxByFilterキャッシュにより検索前の位置は自動的に保持される）
+  const filtLen=getFiltered().length;
+  if(filtLen>0 && idx>=filtLen) idx=filtLen-1;
   updateStats();
   if(mode==='flash')renderFlash();
   else if(mode==='type')renderType();
@@ -2805,15 +2817,7 @@ function clearSearch(){
   if(inp) inp.value='';
   const btn=document.getElementById('search-clear-btn');
   if(btn) btn.style.display='none';
-  if(idxBeforeSearch&&idxBeforeSearch.mode===mode){
-    // 検索開始時のカードに戻す（1枚目にはリセットしない）
-    idxFlash=idxBeforeSearch.idxFlash;
-    idxType=idxBeforeSearch.idxType;
-    idxSlide=idxBeforeSearch.idxSlide;
-  }else if(mode==='flash')idxFlash=0;
-  else if(mode==='type')idxType=0;
-  else idxSlide=0;
-  idxBeforeSearch=null;
+  // idxByFilterキャッシュにより検索前のカード位置に自動的に戻る
   updateStats();
   if(mode==='flash')renderFlash();
   else if(mode==='type')renderType();
