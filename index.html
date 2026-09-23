@@ -258,9 +258,11 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
       <button class="btn" onclick="exportBackup()" title="セーブデータをJSONで書き出す" style="background:var(--accent2);color:#fff;border-color:var(--accent2)">📤 バックアップ</button>
       <label class="btn" style="cursor:pointer;background:#27ae60;color:#fff;border-color:#27ae60" title="JSONバックアップを読み込む" for="backup-input">📥 復元</label>
       <input type="file" id="backup-input" accept=".json" style="display:none" onchange="importBackup(this)">
-      <select id="history-sel" onchange="loadFromHistory(this.value)" oncontextmenu="handleHistoryContextMenu(event)" title="以前読み込んだExcel/CSVの履歴から選択（右クリックで選択中の項目を削除）" style="max-width:180px;padding:8px 6px;border-radius:14px;border:1px solid var(--accent);background:var(--card);color:var(--fg,#333)">
-        <option value="">📜 履歴から開く...</option>
+      <select id="history-sel" title="以前読み込んだExcel/CSVの履歴から選択" style="max-width:180px;padding:8px 6px;border-radius:14px;border:1px solid var(--accent);background:var(--card);color:var(--fg,#333)">
+        <option value="">📜 履歴を選択...</option>
       </select>
+      <button class="btn" onclick="openSelectedHistory()" title="選択中の履歴を開く" style="background:var(--accent2);color:#fff;border-color:var(--accent2)">📂 開く</button>
+      <button class="btn" onclick="deleteSelectedHistory()" title="選択中の履歴を削除" style="background:#e74c3c;color:#fff;border-color:#e74c3c">🗑️ 履歴削除</button>
       <button class="btn" onclick="restoreFromAutoBackup()" title="同期などの前に自動保存された履歴から復元">🕐 自動履歴から復元</button>
     </div>
   </div>
@@ -1338,7 +1340,7 @@ function refreshHistorySelect(){
   if(!sel) return;
   const list=getHistoryKeys();
   const cur=_dataKey;
-  let html='<option value="">📜 履歴から開く...</option>';
+  let html='<option value="">📜 履歴を選択...</option>';
   html+=list.map(function(item){
     const label=String(item.disp||item.key).replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const val=String(item.key).replace(/"/g,'&quot;');
@@ -1348,11 +1350,17 @@ function refreshHistorySelect(){
   sel.innerHTML=html;
 }
 
-function handleHistoryContextMenu(ev){
-  ev.preventDefault();
+function openSelectedHistory(){
   const sel=document.getElementById('history-sel');
   const key=sel&&sel.value;
-  if(!key){ showToast('削除したい履歴を選んでから右クリックしてください'); return; }
+  if(!key){ showToast('開きたい履歴をプルダウンで選んでください'); return; }
+  loadFromHistory(key);
+}
+
+function deleteSelectedHistory(){
+  const sel=document.getElementById('history-sel');
+  const key=sel&&sel.value;
+  if(!key){ showToast('削除したい履歴をプルダウンで選んでください'); return; }
   const disp=(localStorage.getItem('wh_dispName_'+key)||key).replace(/^📄\s*/,'');
   if(!confirm('履歴「'+disp+'」を削除しますか？\n保存されている単語データと進捗も削除されます（元に戻せません）。')) return;
   deleteHistoryEntry(key);
