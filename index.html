@@ -258,7 +258,7 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
       <button class="btn" onclick="exportBackup()" title="セーブデータをJSONで書き出す" style="background:var(--accent2);color:#fff;border-color:var(--accent2)">📤 バックアップ</button>
       <label class="btn" style="cursor:pointer;background:#27ae60;color:#fff;border-color:#27ae60" title="JSONバックアップを読み込む" for="backup-input">📥 復元</label>
       <input type="file" id="backup-input" accept=".json" style="display:none" onchange="importBackup(this)">
-      <select id="history-sel" onchange="loadFromHistory(this.value)" title="以前読み込んだExcel/CSVの履歴から選択" style="max-width:180px;padding:8px 6px;border-radius:14px;border:1px solid var(--accent);background:var(--card);color:var(--fg,#333)">
+      <select id="history-sel" onchange="loadFromHistory(this.value)" oncontextmenu="handleHistoryContextMenu(event)" title="以前読み込んだExcel/CSVの履歴から選択（右クリックで選択中の項目を削除）" style="max-width:180px;padding:8px 6px;border-radius:14px;border:1px solid var(--accent);background:var(--card);color:var(--fg,#333)">
         <option value="">📜 履歴から開く...</option>
       </select>
       <button class="btn" onclick="restoreFromAutoBackup()" title="同期などの前に自動保存された履歴から復元">🕐 自動履歴から復元</button>
@@ -1348,6 +1348,26 @@ function refreshHistorySelect(){
   sel.innerHTML=html;
 }
 
+function handleHistoryContextMenu(ev){
+  ev.preventDefault();
+  const sel=document.getElementById('history-sel');
+  const key=sel&&sel.value;
+  if(!key){ showToast('削除したい履歴を選んでから右クリックしてください'); return; }
+  const disp=(localStorage.getItem('wh_dispName_'+key)||key).replace(/^📄\s*/,'');
+  if(!confirm('履歴「'+disp+'」を削除しますか？\n保存されている単語データと進捗も削除されます（元に戻せません）。')) return;
+  deleteHistoryEntry(key);
+}
+
+function deleteHistoryEntry(key){
+  localStorage.removeItem('wh_words_'+key);
+  localStorage.removeItem('wh_words_updatedAt_'+key);
+  localStorage.removeItem('wh_prog_'+key);
+  localStorage.removeItem('wh_dispName_'+key);
+  if(localStorage.getItem('wh_lastKey')===key) localStorage.removeItem('wh_lastKey');
+  refreshHistorySelect();
+  showToast('🗑️ 履歴を削除しました');
+}
+
 function loadFromHistory(key){
   if(!key) return;
   const rawWords=localStorage.getItem('wh_words_'+key);
@@ -1364,6 +1384,17 @@ function loadFromHistory(key){
   if(!restored){idxFlash=0;idxType=0;idxSlide=0;idxByFilter={};knownFlash=new Set();knownType=new Set();knownSlide=new Set();pronBM=new Set();memBM=new Set();studyDates={};filter='all';}
   init(restored);
   showToast('📜 「'+dispText.replace(/^📄\s*/,'')+'」を読み込みました');
+  // Firebaseに最新の進捗・単語があれば取得して反映（スマホ側の更新を取りこぼさないため）
+  if(window.fbReady && window.fbLoadProgress){
+    Promise.all([
+      window.fbLoadProgress(key).catch(function(){return null;}),
+      window.fbLoadWordsFull ? window.fbLoadWordsFull(key).catch(function(){return null;}) : Promise.resolve(null)
+    ]).then(function(results){
+      var fbData=results[0];
+      var fbWordsDoc=results[1];
+      applyFbData(key, fbData, fbWordsDoc&&fbWordsDoc.words, fbWordsDoc&&fbWordsDoc.updatedAt);
+    }).catch(function(){});
+  }
 }
 
 function appendFromExcel(input){
