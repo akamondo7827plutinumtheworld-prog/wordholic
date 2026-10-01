@@ -25,6 +25,7 @@ window.fbLoadProgress=function(){return Promise.resolve(null);};
 window.fbSaveWords=function(){return Promise.resolve();};
 window.fbLoadWords=function(){return Promise.resolve(null);};
 window.fbLoadWordsFull=function(){return Promise.resolve(null);};
+window.fbListProgress=function(){return Promise.resolve(null);};
 window.fbReady=false;
 // Firebase初期化（DOMContentLoaded後に実行）
 document.addEventListener('DOMContentLoaded', function(){
@@ -50,6 +51,7 @@ document.addEventListener('DOMContentLoaded', function(){
     window.fbSaveWords=function(k,w){if(!k)return Promise.resolve();return db.collection('words').doc(k).set({words:w,updatedAt:firebase.firestore.FieldValue.serverTimestamp()}).catch(function(err){console.error('fbSaveWords failed:',err);if(window.showToast)window.showToast('⚠️ クラウド保存に失敗しました（この端末には保存済み）');});};
     window.fbLoadWords=function(k){if(!k)return Promise.resolve(null);return db.collection('words').doc(k).get().then(function(s){return s.exists?s.data().words:null;}).catch(function(){return null;});};
     window.fbLoadWordsFull=function(k){if(!k)return Promise.resolve(null);return db.collection('words').doc(k).get().then(function(s){return s.exists?s.data():null;}).catch(function(){return null;});};
+    window.fbListProgress=function(){return db.collection('progress').get().then(function(s){return s.docs.map(function(d){var x=d.data()||{};return {key:d.id,dispName:x.dispName||'',updatedAt:x.updatedAt};});}).catch(function(err){console.error('fbListProgress failed:',err);return null;});};
     window.fbReady=true;
     console.log('Firebase初期化完了');
   }catch(ex){
@@ -267,6 +269,7 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
       <button class="btn" onclick="openSelectedHistory()" title="選択中の履歴を開く" style="background:var(--accent2);color:#fff;border-color:var(--accent2)">📂 開く</button>
       <button class="btn" onclick="deleteSelectedHistory()" title="選択中の履歴を削除" style="background:#e74c3c;color:#fff;border-color:#e74c3c">🗑️ 履歴削除</button>
       <button class="btn" onclick="restoreFromAutoBackup()" title="同期などの前に自動保存された履歴から復元">🕐 自動履歴から復元</button>
+      <button class="btn" onclick="openCloudList()" title="クラウド(Firebase)に保存されている問題集を一覧から開く" style="background:var(--accent2);color:#fff;border-color:var(--accent2)">☁️ クラウドから開く</button>
     </div>
   </div>
 
@@ -845,6 +848,7 @@ function saveProgress(){
     memBM:[...memBM],
     imptBM:[...imptBM],
     shiori:shioriKey,
+    dispName:(document.getElementById('file-name-display')||{}).textContent||'',
     studyCount,
     studyDates,
     voiceSettings,
@@ -1322,6 +1326,78 @@ function loadDemo(){
   const restored=restoreProgress('demo');
   if(!restored){idxFlash=0;idxType=0;idxSlide=0;idxByFilter={};knownFlash=new Set();knownType=new Set();knownSlide=new Set();pronBM=new Set();memBM=new Set();studyDates={};filter='all';}
   init(restored);
+}
+
+// ── クラウド(Firebase)から問題集を開く ─────────────────────
+function openFromCloud(key,quiet){
+  if(!key||!window.fbLoadProgress||!window.fbLoadWordsFull) return Promise.resolve(false);
+  return Promise.all([
+    window.fbLoadProgress(key).catch(function(){return null;}),
+    window.fbLoadWordsFull(key).catch(function(){return null;})
+  ]).then(function(r){
+    var p=r[0], wd=r[1];
+    if(!wd||!wd.words||!wd.words.length){ if(!quiet) showToast('❌ クラウドに単語データがありません'); return false; }
+    if(window._slideRunning) stopSlide();
+    // 切り替え前に、いま開いているデータを保存＆自動バックアップ
+    if(_dataKey && _dataKey!=='demo' && _dataKey!==key){ autoBackupSnapshot(_dataKey,'クラウドを開く前'); try{ saveProgress(); }catch(e){} }
+    words=wd.words; _dataKey=key;
+    localStorage.setItem('wh_words_'+key, JSON.stringify(words));
+    localStorage.setItem('wh_words_updatedAt_'+key, String(fbTimeToMillis(wd.updatedAt)||Date.now()));
+    if(p){
+      p.updatedAt=fbTimeToMillis(p.updatedAt)||Date.now();
+      localStorage.setItem('wh_prog_'+key, JSON.stringify(p));
+    }
+    localStorage.setItem('wh_lastKey', key);
+    var dn=(p&&p.dispName)||('📄 '+key.replace(/^file_/,''));
+    localStorage.setItem('wh_dispName_'+key, dn);
+    var disp=document.getElementById('file-name-display'); if(disp) disp.textContent=dn;
+    var restored=p?restoreProgress(key):false;
+    if(!restored){ idxFlash=0;idxType=0;idxSlide=0;idxByFilter={};knownFlash=new Set();knownType=new Set();knownSlide=new Set();pronBM=new Set();memBM=new Set();imptBM=new Set();shioriKey='';studyCount={};studyDates={};filter='all'; }
+    init(restored);
+    showToast('☁️ クラウドから「'+dn.replace(/^📄\s*/,'')+'」を開きました');
+    return true;
+  });
+}
+
+function openCloudList(){
+  if(!window.fbReady||!window.fbListProgress){ showToast('❌ Firebase未接続'); return; }
+  showToast('☁️ クラウドの一覧を取得中...');
+  window.fbListProgress().then(function(list){
+    if(list===null){ showToast('❌ 一覧を取得できませんでした'); return; }
+    list=list.filter(function(x){ return x.key && x.key!=='demo'; });
+    if(!list.length){ showToast('☁️ クラウドに保存されたデータがありません'); return; }
+    list.sort(function(a,b){ return fbTimeToMillis(b.updatedAt)-fbTimeToMillis(a.updatedAt); });
+    var el=document.getElementById('wh-cloud-modal');
+    if(!el){ el=document.createElement('div'); el.id='wh-cloud-modal'; document.body.appendChild(el); }
+    el.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center';
+    el.innerHTML='';
+    var box=document.createElement('div');
+    box.style.cssText='background:var(--card);border-radius:14px;padding:24px;max-width:420px;width:92%;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.2)';
+    var h=document.createElement('div');
+    h.textContent='☁️ クラウドから開く';
+    h.style.cssText='font-size:16px;font-weight:700;margin-bottom:6px;color:var(--ink)';
+    var sub=document.createElement('div');
+    sub.textContent='開く問題集を選んでください（新しい順）';
+    sub.style.cssText='font-size:12px;color:var(--muted);margin-bottom:14px';
+    box.appendChild(h); box.appendChild(sub);
+    list.forEach(function(x){
+      var ms=fbTimeToMillis(x.updatedAt), d=new Date(ms);
+      var ts=ms?((d.getMonth()+1)+'/'+d.getDate()+' '+d.getHours()+':'+String(d.getMinutes()).padStart(2,'0')):'不明';
+      var name=String(x.dispName||'').replace(/^📄\s*/,'')||String(x.key).replace(/^file_/,'');
+      var b=document.createElement('button');
+      b.className='btn';
+      b.style.cssText='display:block;width:100%;text-align:left;margin-bottom:8px;white-space:normal;word-break:break-all'+(x.key===_dataKey?';border-color:var(--accent2)':'');
+      b.textContent='📄 '+name+'（最終更新 '+ts+'）'+(x.key===_dataKey?' ← いま開いている':'');
+      b.onclick=function(){ el.style.display='none'; openFromCloud(x.key); };
+      box.appendChild(b);
+    });
+    var c=document.createElement('button');
+    c.className='btn'; c.textContent='キャンセル'; c.style.cssText='width:100%;margin-top:4px';
+    c.onclick=function(){ el.style.display='none'; };
+    box.appendChild(c);
+    el.onclick=function(e){ if(e.target===el) el.style.display='none'; };
+    el.appendChild(box);
+  });
 }
 
 // ── 履歴（過去に読み込んだExcel/CSV）── ─────────────────
@@ -3098,7 +3174,16 @@ function renderList(){
       }
       loadDemo(); return;
     }
-    if(!lastKey){ loadDemo(); return; }
+    if(!lastKey){
+      // 端末にデータが無い（更新・初回起動など）→ クラウドの中で最後に更新された問題集を開く
+      window.fbListProgress().then(function(list){
+        list=(list||[]).filter(function(x){return x.key&&x.key!=='demo';});
+        list.sort(function(a,b){return fbTimeToMillis(b.updatedAt)-fbTimeToMillis(a.updatedAt);});
+        if(!list.length) return false;
+        return openFromCloud(list[0].key,true);
+      }).then(function(ok){ if(!ok) loadDemo(); }).catch(function(){ loadDemo(); });
+      return;
+    }
     Promise.all([
       window.fbLoadProgress(lastKey).catch(function(){return null;}),
       window.fbLoadWords(lastKey).catch(function(){return null;})
