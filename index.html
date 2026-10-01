@@ -26,6 +26,7 @@ window.fbSaveWords=function(){return Promise.resolve();};
 window.fbLoadWords=function(){return Promise.resolve(null);};
 window.fbLoadWordsFull=function(){return Promise.resolve(null);};
 window.fbListProgress=function(){return Promise.resolve(null);};
+window.fbSaveDispName=function(){return Promise.resolve();};
 window.fbReady=false;
 // Firebase初期化（DOMContentLoaded後に実行）
 document.addEventListener('DOMContentLoaded', function(){
@@ -52,6 +53,7 @@ document.addEventListener('DOMContentLoaded', function(){
     window.fbLoadWords=function(k){if(!k)return Promise.resolve(null);return db.collection('words').doc(k).get().then(function(s){return s.exists?s.data().words:null;}).catch(function(){return null;});};
     window.fbLoadWordsFull=function(k){if(!k)return Promise.resolve(null);return db.collection('words').doc(k).get().then(function(s){return s.exists?s.data():null;}).catch(function(){return null;});};
     window.fbListProgress=function(){return db.collection('progress').get().then(function(s){return s.docs.map(function(d){var x=d.data()||{};return {key:d.id,dispName:x.dispName||'',updatedAt:x.updatedAt};});}).catch(function(err){console.error('fbListProgress failed:',err);return null;});};
+    window.fbSaveDispName=function(k,n){if(!k||!n)return Promise.resolve();return db.collection('progress').doc(k).set({dispName:n},{merge:true}).catch(function(err){console.error('fbSaveDispName failed:',err);});};
     window.fbReady=true;
     console.log('Firebase初期化完了');
   }catch(ex){
@@ -1328,6 +1330,24 @@ function loadDemo(){
   init(restored);
 }
 
+// この端末の履歴に残っている本来のファイル名を、クラウド側に名前が無い問題集へ登録する（起動時に1回）
+function backfillCloudNames(n){
+  n=n||0;
+  if(!window.fbReady){ if(n<50) setTimeout(function(){ backfillCloudNames(n+1); },200); return; }
+  if(!window.fbListProgress||!window.fbSaveDispName) return;
+  window.fbListProgress().then(function(list){
+    if(!list) return;
+    list.forEach(function(x){
+      if(!x.key||x.key==='demo') return;
+      var cur=String(x.dispName||'').replace(/^📄\s*/,'');
+      var isFallback=!cur||cur===String(x.key).replace(/^file_/,'');
+      if(!isFallback) return;
+      var local=localStorage.getItem('wh_dispName_'+x.key);
+      if(local && String(local).replace(/^📄\s*/,'')!==cur) window.fbSaveDispName(x.key,local);
+    });
+  }).catch(function(){});
+}
+
 // ── クラウド(Firebase)から問題集を開く ─────────────────────
 function openFromCloud(key,quiet){
   if(!key||!window.fbLoadProgress||!window.fbLoadWordsFull) return Promise.resolve(false);
@@ -1383,7 +1403,8 @@ function openCloudList(){
     list.forEach(function(x){
       var ms=fbTimeToMillis(x.updatedAt), d=new Date(ms);
       var ts=ms?((d.getMonth()+1)+'/'+d.getDate()+' '+d.getHours()+':'+String(d.getMinutes()).padStart(2,'0')):'不明';
-      var name=String(x.dispName||'').replace(/^📄\s*/,'')||String(x.key).replace(/^file_/,'');
+      var keyName=String(x.key).replace(/^file_/,''), cloudName=String(x.dispName||'').replace(/^📄\s*/,'');
+      var name=(cloudName&&cloudName!==keyName)?cloudName:(String(localStorage.getItem('wh_dispName_'+x.key)||'').replace(/^📄\s*/,'')||keyName);
       var b=document.createElement('button');
       b.className='btn';
       b.style.cssText='display:block;width:100%;text-align:left;margin-bottom:8px;white-space:normal;word-break:break-all'+(x.key===_dataKey?';border-color:var(--accent2)':'');
@@ -1710,6 +1731,7 @@ function init(restored){
   }
   if(restored) showToast('📖 前回の続きから再開しました（'+idx+'番目）');
   refreshHistorySelect();
+  if(!window._cloudNamesBackfilled){ window._cloudNamesBackfilled=true; backfillCloudNames(); }
 }
 
 // スライド設定をDOMに反映する共通関数
