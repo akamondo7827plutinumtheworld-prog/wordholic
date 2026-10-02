@@ -313,7 +313,8 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
         style="flex:1;padding:9px 14px;border:1.5px solid var(--border);border-radius:20px;font-size:14px;font-family:'BIZ UDGothic',sans-serif;background:var(--paper);color:var(--ink);outline:none"
         oninput="doSearch(this.value); if(mode==='flash')renderFlash();else if(mode==='type')renderType();else if(mode==='slide')renderSlide();else if(mode==='list')renderList();" onfocus="this.style.borderColor='var(--accent2)'" onblur="this.style.borderColor='var(--border)'">
       <button class="btn" onclick="clearSearch()" id="search-clear-btn" style="display:none;border-radius:20px">✕ クリア</button>
-      <button class="btn" id="shiori-jump-btn" onclick="jumpToShiori()" title="しおりを挟んだカードへ移動" style="display:none;border-radius:20px;background:#16a085;color:#fff;border-color:#16a085">🔖 しおりへ</button>
+      <button class="btn" id="shiori-jump-btn" onclick="jumpToShiori('flash')" title="しおりを挟んだカードへ移動" style="display:none;border-radius:20px;background:#16a085;color:#fff;border-color:#16a085">🔖 しおりへ</button>
+      <button class="btn" id="shiori-jump-btn-slide" onclick="jumpToShiori('slide')" title="スライドのしおりへ移動" style="display:none;border-radius:20px;background:#16a085;color:#fff;border-color:#16a085">🔖 しおりへ</button>
     </div>
     <div class="filter-bar">
       <span class="filter-label">表示：</span>
@@ -555,7 +556,11 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 <script>
 let words=[], pronBM=new Set(), memBM=new Set(), imptBM=new Set(), studyCount={}, studyDates={}, searchQuery='';
 let idxFlash=0, idxType=0, idxSlide=0;
-let shioriKey=''; // しおり：単語の英語テキストで保持（並び替え・追加に強い）
+let shioriFlash='', shioriSlide=''; // しおり：フラッシュ用／スライド用。単語の英語テキストで保持（並び替え・追加に強い）
+function shioriKind(){ return mode==='slide'?'slide':'flash'; }
+function getShiori(kind){ return (kind||shioriKind())==='slide'?shioriSlide:shioriFlash; }
+function setShioriVal(kind,v){ if(kind==='slide')shioriSlide=v; else shioriFlash=v; }
+function loadShiori(d){ d=d||{}; const old=d.shiori||''; shioriFlash=d.shioriFlash!==undefined?(d.shioriFlash||''):old; shioriSlide=d.shioriSlide!==undefined?(d.shioriSlide||''):old; }
 function fbTimeToMillis(v){
   if(!v) return 0;
   if(typeof v==='number') return v;
@@ -662,7 +667,7 @@ function applyFbData(key, fbData, fbWords, fbWordsUpdatedAt){
     pronBM=migK(fbData.pronBM);
     memBM=migK(fbData.memBM);
     imptBM=migK(fbData.imptBM);
-    shioriKey=fbData.shiori||'';
+    loadShiori(fbData);
     studyCount=migO(fbData.studyCount||{});
     studyDates=migO(fbData.studyDates||{});
     localStorage.setItem('wh_prog_'+key, JSON.stringify(fbData));
@@ -851,7 +856,9 @@ function saveProgress(){
     pronBM:[...pronBM],
     memBM:[...memBM],
     imptBM:[...imptBM],
-    shiori:shioriKey,
+    shiori:shioriFlash, // 旧バージョン互換（フラッシュ側）
+    shioriFlash:shioriFlash,
+    shioriSlide:shioriSlide,
     dispName:(document.getElementById('file-name-display')||{}).textContent||'',
     studyCount,
     studyDates,
@@ -905,7 +912,7 @@ function restoreProgress(key){
     pronBM=migrateKeys(d.pronBM||[]);
     memBM=migrateKeys(d.memBM||[]);
     imptBM=migrateKeys(d.imptBM||[]);
-    shioriKey=d.shiori||'';
+    loadShiori(d);
     knownFlash=migrateKeys(d.knownFlash||d.known||[]);
     knownType=migrateKeys(d.knownType||[]);
     knownSlide=migrateKeys(d.knownSlide||[]);
@@ -966,7 +973,7 @@ function tryAutoRestore(){
         pronBM=new Set(fbData.pronBM||[]);
         memBM=new Set(fbData.memBM||[]);
         imptBM=new Set(fbData.imptBM||[]);
-        shioriKey=fbData.shiori||'';
+        loadShiori(fbData);
         studyCount=fbData.studyCount||{};
         studyDates=fbData.studyDates||{};
         if(fbData.slideSettings) applySlideSettingsToDOM(fbData.slideSettings);
@@ -1024,7 +1031,7 @@ function clearProgress(){
   localStorage.removeItem('wh_words_'+_dataKey);
   localStorage.removeItem('wh_dispName_'+_dataKey);
   localStorage.removeItem('wh_lastKey');
-  idxFlash=0;idxType=0;idxSlide=0;idxByFilter={};knownFlash=new Set();knownType=new Set();knownSlide=new Set();pronBM=new Set();memBM=new Set();imptBM=new Set();shioriKey='';studyCount={};studyDates={};filter='all';mode='flash';
+  idxFlash=0;idxType=0;idxSlide=0;idxByFilter={};knownFlash=new Set();knownType=new Set();knownSlide=new Set();pronBM=new Set();memBM=new Set();imptBM=new Set();shioriFlash='';shioriSlide='';studyCount={};studyDates={};filter='all';mode='flash';
   setFilter('all');setMode('flash');
   showToast('進捗をリセットしました');
 }
@@ -1391,7 +1398,7 @@ function openFromCloud(key,quiet){
     localStorage.setItem('wh_dispName_'+key, dn);
     var disp=document.getElementById('file-name-display'); if(disp) disp.textContent=dn;
     var restored=p?restoreProgress(key):false;
-    if(!restored){ idxFlash=0;idxType=0;idxSlide=0;idxByFilter={};knownFlash=new Set();knownType=new Set();knownSlide=new Set();pronBM=new Set();memBM=new Set();imptBM=new Set();shioriKey='';studyCount={};studyDates={};filter='all'; }
+    if(!restored){ idxFlash=0;idxType=0;idxSlide=0;idxByFilter={};knownFlash=new Set();knownType=new Set();knownSlide=new Set();pronBM=new Set();memBM=new Set();imptBM=new Set();shioriFlash='';shioriSlide='';studyCount={};studyDates={};filter='all'; }
     init(restored);
     showToast('☁️ クラウドから「'+dn.replace(/^📄\s*/,'')+'」を開きました');
     return true;
@@ -1636,7 +1643,7 @@ function loadFile(input){
           knownSlide=new Set(fbData.knownSlide||[]);
           pronBM=new Set(fbData.pronBM||[]);
           memBM=new Set(fbData.memBM||[]);
-          shioriKey=fbData.shiori||'';
+          loadShiori(fbData);
           studyCount=fbData.studyCount||{};
           studyDates=fbData.studyDates||{};
           localStorage.setItem('wh_prog_'+key, JSON.stringify(fbData));
@@ -1680,7 +1687,7 @@ function loadFile(input){
           knownSlide=new Set(fbData.knownSlide||[]);
           pronBM=new Set(fbData.pronBM||[]);
           memBM=new Set(fbData.memBM||[]);
-          shioriKey=fbData.shiori||'';
+          loadShiori(fbData);
           studyCount=fbData.studyCount||{};
           studyDates=fbData.studyDates||{};
           // localStorageに保存
@@ -1868,6 +1875,7 @@ function setMode(m){
   else if(m==='type')renderType();
   else if(m==='slide')renderSlide();
   else if(m==='list')renderList();
+  updateShioriBtn();
 }
 
 function bmDotsHtml(oi){
@@ -1882,7 +1890,7 @@ function bmRowHtml(oi){
     <button class="bm-btn ${ip?'on-pron':'off'}" onclick="toggleBM('pron',${oi})">🎤 ${ip?'発音練習中':'発音練習に追加'}</button>
     <button class="bm-btn ${im?'on-mem':'off'}" onclick="toggleBM('mem',${oi})">💡 ${im?'記憶中':'記憶に追加'}</button>
     <button class="bm-btn ${imptBM.has(enKey)?'on-impt':'off'}" onclick="toggleBM('impt',${oi})">⭐ ${imptBM.has(enKey)?'重点練習中':'重点練習に追加'}</button>
-    <button class="bm-btn shiori-toggle ${shioriKey&&shioriKey===enKey?'on-shiori':'off'}" data-oi="${oi}" onclick="event.stopPropagation();setShiori(${oi})">${shioriKey&&shioriKey===enKey?'🔖 しおり中（外す）':'🔖 ここにしおり'}</button>
+    <button class="bm-btn shiori-toggle ${(getShiori()&&getShiori()===enKey)?'on-shiori':'off'}" data-oi="${oi}" onclick="event.stopPropagation();setShiori(${oi})">${(getShiori()&&getShiori()===enKey)?'🔖 しおり中（外す）':'🔖 ここにしおり'}</button>
     <div style="display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;background:var(--cream);border:1.5px solid var(--border);font-size:13px">
       <span>📚 学習回数: <strong>${sc}</strong></span>
       ${sc>0?`<button onclick="event.stopPropagation();studyCount[words[${oi}]?.en]=Math.max(0,(studyCount[words[${oi}]?.en]||0)-1);saveProgress();renderFlash()" style="padding:2px 8px;border-radius:10px;border:1px solid var(--border);background:var(--paper);font-size:11px;cursor:pointer">-1</button>`:''}
@@ -1911,30 +1919,45 @@ function toggleBM(type,oi){
 
 // ── しおり ───────────────────────────────────────────────
 function updateShioriBtn(){
-  const b=document.getElementById('shiori-jump-btn'); if(!b) return;
-  const n=shioriKey?words.findIndex(x=>x.en===shioriKey)+1:0;
-  if(n>0){ b.style.display=''; b.textContent='🔖 しおりへ（'+n+'番）'; }
-  else { b.style.display='none'; }
+  const bf=document.getElementById('shiori-jump-btn');
+  const bs=document.getElementById('shiori-jump-btn-slide');
+  const nf=shioriFlash?words.findIndex(x=>x.en===shioriFlash)+1:0;
+  const ns=shioriSlide?words.findIndex(x=>x.en===shioriSlide)+1:0;
+  const inList=mode==='list';
+  // フラッシュ/入力モード→フラッシュのしおり、スライド→スライドのしおり、一覧→両方
+  const showF=nf>0&&mode!=='slide';
+  const showS=ns>0&&(mode==='slide'||inList);
+  if(bf){
+    bf.style.display=showF?'':'none';
+    if(showF) bf.textContent=inList?('🃏🔖 '+nf+'番'):('🔖 しおりへ（'+nf+'番）');
+  }
+  if(bs){
+    bs.style.display=showS?'':'none';
+    if(showS) bs.textContent=inList?('▶️🔖 '+ns+'番'):('🔖 しおりへ（'+ns+'番）');
+  }
 }
 
-function setShiori(oi){
+function setShiori(oi,kind){
+  kind=kind||shioriKind();
   const enKey=typeof oi==='number'?words[oi]?.en:oi;
   if(!enKey) return;
-  if(shioriKey===enKey){
-    shioriKey='';
-    showToast('🔖 しおりを外しました');
+  const label=kind==='slide'?'スライド':'フラッシュ';
+  if(getShiori(kind)===enKey){
+    setShioriVal(kind,'');
+    showToast('🔖 '+label+'のしおりを外しました');
   } else {
-    shioriKey=enKey;
-    showToast('🔖 '+(words.findIndex(x=>x.en===enKey)+1)+'番目にしおりを挟みました');
+    setShioriVal(kind,enKey);
+    showToast('🔖 '+label+'：'+(words.findIndex(x=>x.en===enKey)+1)+'番目にしおりを挟みました');
   }
   updateStats();
   if(mode==='list'){
     renderList();
   } else {
     // カードは再描画せず、ボタンの見た目だけ更新（めくり状態・自動再生を邪魔しない）
+    const cur=getShiori();
     document.querySelectorAll('.shiori-toggle').forEach(function(b){
       const o=parseInt(b.dataset.oi,10);
-      const on=!!shioriKey && words[o] && words[o].en===shioriKey;
+      const on=!!cur && words[o] && words[o].en===cur;
       b.className='bm-btn shiori-toggle '+(on?'on-shiori':'off');
       b.textContent=on?'🔖 しおり中（外す）':'🔖 ここにしおり';
     });
@@ -1942,8 +1965,10 @@ function setShiori(oi){
   saveProgress();
 }
 
-function jumpToShiori(){
-  const wIdx=shioriKey?words.findIndex(x=>x.en===shioriKey):-1;
+function jumpToShiori(kind){
+  kind=kind||shioriKind();
+  const key=getShiori(kind);
+  const wIdx=key?words.findIndex(x=>x.en===key):-1;
   if(wIdx<0){ showToast('🔖 しおりが見つかりません'); return; }
   if(window._slideRunning) stopSlide();
   // 検索・絞り込みを解除して、全体の中の位置へ移動
@@ -1951,9 +1976,10 @@ function jumpToShiori(){
   const si=document.getElementById('search-input'); if(si) si.value='';
   const sc=document.getElementById('search-clear-btn'); if(sc) sc.style.display='none';
   setFilter('all',true);
-  // 再生範囲の外にしおりがある場合、自動再生が範囲の先頭に戻らないよう開始番号を合わせる
+  // 再生範囲の外にしおりがある場合、自動再生が範囲の先頭に戻らないよう開始番号を合わせる（そのしおりの種類の範囲だけ）
   const pos=wIdx+1;
-  [['slide-range-from','slide-range-to'],['flash-range-from','flash-range-to']].forEach(function(p){
+  const rangeIds=kind==='slide'?[['slide-range-from','slide-range-to']]:[['flash-range-from','flash-range-to']];
+  rangeIds.forEach(function(p){
     const fe=document.getElementById(p[0]), te=document.getElementById(p[1]);
     if(!fe||!te) return;
     const from=parseInt(fe.value,10)||1;
@@ -1968,11 +1994,11 @@ function jumpToShiori(){
   updateStats();
   setMode(mode);
   if(mode==='list'){
-    const r=document.getElementById('shiori-row');
+    const r=document.querySelector('tr[data-shiori~="'+kind+'"]');
     if(r) r.scrollIntoView({block:'center'});
   }
   saveProgress();
-  showToast('🔖 しおりの位置（'+pos+'番）に移動しました');
+  showToast('🔖 '+(kind==='slide'?'スライド':'フラッシュ')+'のしおりの位置（'+pos+'番）に移動しました');
 }
 
 // ── Flash ────────────────────────────────────────────────
@@ -2000,7 +2026,6 @@ function renderFlash(){
               <div class="card-word" style="font-family:'BIZ UDGothic',sans-serif">${w.en.replace(/\n/g,'<br>')}</div>
               <div class="card-phonetic">${w.ph||''}</div>
             </div>
-            ${w.note?'<div style="font-size:15px;color:var(--muted);margin-top:8px;text-align:left;padding:6px 12px;line-height:1.6;background:var(--cream);border-radius:8px;max-height:80px;overflow-y:auto;width:100%;box-sizing:border-box">'+w.note.replace(/\n/g,'<br>')+'</div>':''}
             <div style="display:flex;justify-content:center;margin-top:10px" onclick="event.stopPropagation()">${speakBtnHtml(w.en)}</div>
           </div>
         </div>
@@ -2010,6 +2035,7 @@ function renderFlash(){
       <button style="flex:1;padding:14px 0;font-size:16px;font-weight:700;border-radius:10px;border:1.5px solid #27ae60;background:#27ae60;color:#fff;cursor:pointer;font-family:'BIZ UDGothic',sans-serif" onclick="markKnown(true)">学習済 ✓</button>
       <button style="flex:1;padding:14px 0;font-size:20px;font-weight:700;border-radius:10px;border:1.5px solid var(--border);background:var(--card);color:var(--ink);cursor:pointer;font-family:'BIZ UDGothic',sans-serif" onclick="navigate(1)">次へ ▶</button>
     </div>
+    ${w.note?`<div id="flash-note-box" style="display:none;margin-top:8px;padding:12px 16px;background:var(--cream);border:1.5px solid var(--border);border-radius:10px;font-size:16px;color:var(--ink);line-height:1.8;max-height:180px;overflow-y:auto">${w.note.replace(/\n/g,'<br>')}</div>`:''}
     <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
       <div style="flex:1;text-align:center;font-size:16px;font-weight:600;color:var(--accent2);cursor:pointer;padding:8px;border-radius:8px;border:1.5px solid var(--accent2)" onclick="jumpToCard()" title="番号を入力してジャンプ">${Math.min(idx,filt.length-1)+1} / ${filt.length} ✈</div>
       ${searchQuery?`<div style="font-size:12px;color:var(--muted);background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:6px 12px;white-space:nowrap">全体 <span style="font-weight:700;color:var(--ink)">${oi+1}</span> 枚目</div>`:''}
@@ -2031,6 +2057,8 @@ function flipCard(){
   flipped=!flipped;
   const c=document.getElementById('fc');
   if(c)c.classList.toggle('flipped',flipped);
+  const nb=document.getElementById('flash-note-box');
+  if(nb)nb.style.display=flipped?'block':'none';
   if(flipped){
     const w=getFiltered()[Math.min(idx,getFiltered().length-1)];
     if(!w)return;
@@ -2986,7 +3014,8 @@ function doEditCard(){
     if(pronBM.has(oldEn)){ pronBM.delete(oldEn); pronBM.add(en); }
     if(memBM.has(oldEn)){ memBM.delete(oldEn); memBM.add(en); }
     if(imptBM.has(oldEn)){ imptBM.delete(oldEn); imptBM.add(en); }
-    if(shioriKey===oldEn) shioriKey=en;
+    if(shioriFlash===oldEn) shioriFlash=en;
+    if(shioriSlide===oldEn) shioriSlide=en;
     if(studyDates[oldEn]){ studyDates[en]=studyDates[oldEn]; delete studyDates[oldEn]; }
     if(studyCount[oldEn]){ studyCount[en]=studyCount[oldEn]; delete studyCount[oldEn]; }
   }
@@ -3155,7 +3184,8 @@ function deleteCard(oi){
   memBM.delete(enKey);
   delete studyCount[enKey];
   delete studyDates[enKey];
-  if(shioriKey===enKey) shioriKey='';
+  if(shioriFlash===enKey) shioriFlash='';
+  if(shioriSlide===enKey) shioriSlide='';
   // wordsから削除
   words.splice(wIdx, 1);
   // origインデックスを振り直し（不要だが互換性のため）
@@ -3176,7 +3206,8 @@ function renderList(){
     const globalNum=wIdx>=0?wIdx+1:i+1; // 全体何枚目
     const dots=(pronBM.has(w.en)?'<span class="bm-icon pron"></span>':'')+(memBM.has(w.en)?'<span class="bm-icon mem"></span>':'');
     const enEsc=oi.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    return`<tr${shioriKey&&w.en===shioriKey?' class="shiori-row" id="shiori-row"':''}>
+    const _sf=!!shioriFlash&&w.en===shioriFlash, _ss=!!shioriSlide&&w.en===shioriSlide;
+    return`<tr${(_sf||_ss)?' class="shiori-row" data-shiori="'+(_sf?'flash ':'')+(_ss?'slide':'')+'"':''}>
       <td style="color:var(--muted)">${globalNum}</td>
       <td style="font-family:'BIZ UDGothic',sans-serif;cursor:pointer" onclick="idx=${i};setMode('flash')">${dots}${w.jp}</td>
       <td style="font-family:'BIZ UDGothic',sans-serif;font-style:italic">${w.en}</td>
@@ -3194,7 +3225,8 @@ function renderList(){
       <td>
         <button class="bm-btn ${pronBM.has(w.en)?'on-pron':'off'}" style="padding:4px 10px;font-size:11px" onclick="toggleBM('pron',${wIdx})">🎤</button>
         <button class="bm-btn ${memBM.has(w.en)?'on-mem':'off'}" style="padding:4px 10px;font-size:11px;margin-left:4px" onclick="toggleBM('mem',${wIdx})">💡</button>
-        <button class="bm-btn ${shioriKey&&w.en===shioriKey?'on-shiori':'off'}" style="padding:4px 10px;font-size:11px;margin-left:4px" title="ここにしおり" onclick="setShiori(${wIdx})">🔖</button>
+        <button class="bm-btn ${_sf?'on-shiori':'off'}" style="padding:4px 10px;font-size:11px;margin-left:4px" title="フラッシュ用しおり" onclick="setShiori(${wIdx},'flash')">🃏🔖</button>
+        <button class="bm-btn ${_ss?'on-shiori':'off'}" style="padding:4px 10px;font-size:11px;margin-left:4px" title="スライド用しおり" onclick="setShiori(${wIdx},'slide')">▶️🔖</button>
         <button style="padding:4px 10px;font-size:11px;margin-left:4px;border:1px solid var(--accent2);border-radius:14px;background:var(--card);color:var(--accent2);cursor:pointer" onclick="showEditCardByOrig(${wIdx})">✏️</button>
         <button style="padding:4px 10px;font-size:11px;margin-left:4px;border:1px solid var(--accent);border-radius:14px;background:var(--card);color:var(--accent);cursor:pointer" onclick="deleteCard(${wIdx})">🗑️</button>
       </td>
@@ -3257,7 +3289,7 @@ function renderList(){
           knownSlide=new Set(fbData.knownSlide||[]);
           pronBM=new Set(fbData.pronBM||[]);
           memBM=new Set(fbData.memBM||[]);
-          shioriKey=fbData.shiori||'';
+          loadShiori(fbData);
           studyCount=fbData.studyCount||{};
           studyDates=fbData.studyDates||{};
           if(fbData.slideSettings) window._pendingSlideSettings=fbData.slideSettings;
