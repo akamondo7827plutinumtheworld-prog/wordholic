@@ -53,9 +53,10 @@ document.addEventListener('DOMContentLoaded', function(){
     window.fbSaveWords=function(k,w){if(!k)return Promise.resolve();return db.collection('words').doc(k).set({words:w,updatedAt:firebase.firestore.FieldValue.serverTimestamp()}).catch(function(err){console.error('fbSaveWords failed:',err);if(window.showToast)window.showToast('⚠️ クラウド保存に失敗しました（この端末には保存済み）');});};
     window.fbLoadWords=function(k){if(!k)return Promise.resolve(null);return db.collection('words').doc(k).get().then(function(s){return s.exists?s.data().words:null;}).catch(function(){return null;});};
     window.fbLoadWordsFull=function(k){if(!k)return Promise.resolve(null);return db.collection('words').doc(k).get().then(function(s){return s.exists?s.data():null;}).catch(function(){return null;});};
-    window.fbListProgress=function(){return db.collection('progress').get().then(function(s){return s.docs.map(function(d){var x=d.data()||{};return {key:d.id,dispName:x.dispName||'',updatedAt:x.updatedAt};});}).catch(function(err){console.error('fbListProgress failed:',err);return null;});};
+    window.fbListProgress=function(){return db.collection('progress').get().then(function(s){var off={},list=[];s.docs.forEach(function(d){var x=d.data()||{};if(d.id==='__official__'){(x.keys||[]).forEach(function(k){off[k]=true;});return;}list.push({key:d.id,dispName:x.dispName||'',updatedAt:x.updatedAt});});list.forEach(function(e){e.official=!!off[e.key];});return list;}).catch(function(err){console.error('fbListProgress failed:',err);return null;});};
     window.fbSaveDispName=function(k,n){if(!k||!n)return Promise.resolve();return db.collection('progress').doc(k).set({dispName:n},{merge:true}).catch(function(err){console.error('fbSaveDispName failed:',err);});};
-    window.fbDeleteSet=function(k){if(!k)return Promise.resolve(false);return Promise.all([db.collection('progress').doc(k).delete(),db.collection('words').doc(k).delete()]).then(function(){return true;}).catch(function(err){console.error('fbDeleteSet failed:',err);return false;});};
+    window.fbSetOfficial=function(k,on){if(!k)return Promise.resolve(false);var FV=firebase.firestore.FieldValue;return db.collection('progress').doc('__official__').set({keys:on?FV.arrayUnion(k):FV.arrayRemove(k)},{merge:true}).then(function(){return true;}).catch(function(err){console.error('fbSetOfficial failed:',err);return false;});};
+    window.fbDeleteSet=function(k){if(!k)return Promise.resolve(false);return Promise.all([db.collection('progress').doc(k).delete(),db.collection('words').doc(k).delete(),db.collection('progress').doc('__official__').set({keys:firebase.firestore.FieldValue.arrayRemove(k)},{merge:true}).catch(function(){})]).then(function(){return true;}).catch(function(err){console.error('fbDeleteSet failed:',err);return false;});};
     window.fbReady=true;
     console.log('Firebase初期化完了');
   }catch(ex){
@@ -107,6 +108,8 @@ input[type=file]{display:none}
 .speak-btn.speaking{background:var(--speak);color:#fff;animation:pulse 1s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.7}}
 .speak-btn svg{width:16px;height:16px;fill:currentColor}
+.ask-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:20px;border:1.5px solid var(--border);background:var(--card);color:var(--ink);font-family:'BIZ UDGothic',sans-serif;font-size:14px;cursor:pointer;transition:all .2s}
+.ask-btn:hover{background:var(--ink);color:#fff}
 
 /* Voice settings bar */
 .voice-bar{background:var(--cream);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
@@ -215,6 +218,7 @@ input[type=file]{display:none}
   .card-phonetic{font-size:20px}
   .nav-side-btn{width:50px;min-height:70px;font-size:13px}
   .speak-btn{padding:8px 14px;font-size:13px}
+  .ask-btn{padding:8px 12px;font-size:13px}
   .voice-bar{gap:8px;padding:10px 12px}
   .voice-bar select{font-size:11px;max-width:120px}
   .filter-bar{gap:6px}
@@ -281,8 +285,10 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
     <!-- 音声設定バー -->
     <div class="voice-bar">
       <span style="font-size:13px;font-weight:600;color:var(--speak)">🔊 読み上げ設定</span>
-      <label>声：</label>
+      <label>声 EN：</label>
       <select id="voice-sel" onchange="setVoice()"></select>
+      <label>声 JA：</label>
+      <select id="ja-voice-sel" onchange="setJaVoice()"></select>
       <label>速さ EN：</label>
       <button onclick="adjustRate('en',-0.1)" style="padding:3px 9px;border-radius:6px;border:1.5px solid var(--border);background:var(--card);font-size:14px;cursor:pointer;font-weight:700">−</button>
       <input type="range" id="rate-sl" min="0.5" max="2" step="0.1" value="1" oninput="document.getElementById('rate-v').textContent=parseFloat(this.value).toFixed(1);saveVoiceSettings()">
@@ -1043,6 +1049,7 @@ function showToast(msg){
 // ── Speech ──────────────────────────────────────────────
 let _voiceLoadAttempts=0;
 function loadVoices(){
+  loadJaVoices();
   if(window.electronTTS) return;
   const all=window.speechSynthesis.getVoices();
   const enVoices=all.filter(v=>v.lang.startsWith('en'));
@@ -1159,6 +1166,63 @@ function adjustRate(lang, delta){
   saveVoiceSettings();
 }
 
+// ── 日本語の声（プルダウン） ──────────────────────────
+let selectedJaVoice=null;   // ブラウザ：手動で選んだ声（null=自動）
+let jaVoices=[];
+const JA_NEURAL=[
+  ['ja-JP-NanamiNeural','七海 (Nanami)'],['ja-JP-KeitaNeural','圭太 (Keita)'],
+  ['ja-JP-AoiNeural','碧衣 (Aoi)'],['ja-JP-DaichiNeural','大智 (Daichi)'],
+  ['ja-JP-MayuNeural','真夕 (Mayu)'],['ja-JP-NaokiNeural','直紀 (Naoki)'],
+  ['ja-JP-ShioriNeural','志織 (Shiori)']
+];
+function jaVoiceId(){ return document.getElementById('ja-voice-sel')?.value||'ja-JP-NanamiNeural'; }
+function jaManualVoice(){
+  if(!selectedJaVoice) return null;
+  const all=window.speechSynthesis.getVoices();
+  return all.find(function(v){return v.name===selectedJaVoice.name;})||selectedJaVoice;
+}
+function loadJaVoices(){
+  const sel=document.getElementById('ja-voice-sel');
+  if(!sel) return;
+  const vs=loadVoiceSettings();
+  if(window.electronTTS){
+    if(sel.options.length) return;
+    JA_NEURAL.forEach(function(x){ const o=document.createElement('option'); o.value=x[0]; o.textContent=x[1]; sel.appendChild(o); });
+    if(vs&&vs.jaVoice&&JA_NEURAL.some(function(x){return x[0]===vs.jaVoice;})) sel.value=vs.jaVoice;
+    return;
+  }
+  const all=window.speechSynthesis.getVoices().filter(function(v){return v.lang.startsWith('ja');});
+  if(!all.length) return;
+  if(sel.options.length&&all.length===jaVoices.length) return;
+  jaVoices=all;
+  const want=selectedJaVoice?selectedJaVoice.name:((vs&&vs.jaVoice)||'');
+  sel.innerHTML='';
+  const a=document.createElement('option'); a.value='auto'; a.textContent='自動（おすすめ）'; sel.appendChild(a);
+  jaVoices.forEach(function(v,i){ const o=document.createElement('option'); o.value=String(i); o.textContent=v.name; sel.appendChild(o); });
+  const idx=want?jaVoices.findIndex(function(v){return v.name===want;}):-1;
+  sel.value=idx>=0?String(idx):'auto';
+  selectedJaVoice=idx>=0?jaVoices[idx]:null;
+}
+function setJaVoice(){
+  const sel=document.getElementById('ja-voice-sel');
+  if(!window.electronTTS){
+    selectedJaVoice=(sel&&sel.value!=='auto')?(jaVoices[+sel.value]||null):null;
+  }
+  saveVoiceSettings();
+  previewJa();
+}
+// 声を変えたときの試し聞き
+function previewJa(){
+  const t='こんにちは。この声で読み上げます。';
+  const r=Math.max(0.5,parseFloat(document.getElementById('rate-ja-sl')?.value||1));
+  const vol=parseFloat(document.getElementById('vol-sl')?.value||1);
+  if(window.electronTTS){ window.electronTTS.stop(); window.electronTTS.speak(t,r,vol,jaVoiceId()); return; }
+  const all=window.speechSynthesis.getVoices();
+  const v=jaManualVoice()||all.find(function(x){return /Nanami|七海/.test(x.name);})||all.find(function(x){return x.lang==='ja-JP';})||null;
+  const u=new SpeechSynthesisUtterance(t); u.lang='ja-JP'; if(v) u.voice=v; u.rate=r; u.volume=vol;
+  window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);
+}
+
 function saveVoiceSettings(){
   const sel=document.getElementById('voice-sel');
   const rate=document.getElementById('rate-sl')?.value||'1';
@@ -1167,7 +1231,9 @@ function saveVoiceSettings(){
   const voiceName=window.electronTTS
     ? (sel?sel.value:'')
     : (selectedVoice?selectedVoice.name:'');
-  const settings={voiceName, rate, rateJa, vol};
+  const jaSel=document.getElementById('ja-voice-sel');
+  const jaVoice=window.electronTTS?(jaSel?jaSel.value:''):(selectedJaVoice?selectedJaVoice.name:'');
+  const settings={voiceName, rate, rateJa, vol, jaVoice};
   localStorage.setItem('wh_voice_settings', JSON.stringify(settings));
   saveProgress();
 }
@@ -1245,7 +1311,32 @@ function speakCurrent(){
   speak(filt[Math.min(idx,filt.length-1)].en);
 }
 
+// ── 英文をクリップボードにコピー ─────────────────────────
+async function copyText(t){
+  try{ await navigator.clipboard.writeText(t); return true; }catch(e){}
+  try{
+    const ta=document.createElement('textarea'); ta.value=t; ta.style.cssText='position:fixed;opacity:0';
+    document.body.appendChild(ta); ta.select(); const ok=document.execCommand('copy'); ta.remove(); return ok;
+  }catch(e){ return false; }
+}
+function copyEnglish(btn){
+  const en=((btn&&btn.dataset&&btn.dataset.en)||'').trim();
+  if(!en) return;
+  const p=copyText(en);   // クリック直後にコピーを開始（フォーカスを失う前）
+  if(window.electronTTS){
+    // EXE：ChatGPTを開くとアプリ内に新しい窓ができてしまうため、コピーだけ行う
+    p.then(function(ok){ showToast(ok?'📋 英文をコピーしました。ChatGPTに貼り付けてください':'コピーに失敗しました'); });
+    return;
+  }
+  if(window._slideRunning) stopSlide();
+  // 英文は「#wh=」の後ろ（ページ内の目印）に載せる。サーバーには送られず、自動送信もされない。
+  // ブラウザ拡張（lingolab-chatgpt.user.js）を入れていれば入力欄に入る。無くても通常どおり開き、Ctrl+Vで貼れる。
+  window.open('https://chatgpt.com/#wh='+encodeURIComponent(en),'_blank','noopener');
+  p.then(function(ok){ showToast(ok?'📋 英文をコピーしました（入っていなければ Ctrl+V）':'ChatGPTを開きました（コピーに失敗）'); });
+}
+
 function speakBtnHtml(text,oi){
+  const escA=text.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
   const esc=text.replace(/"/g,'&quot;');
   const escSQ=text.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
   const oiEscQ=String(oi||'').replace(/"/g,'&quot;');
@@ -1270,11 +1361,12 @@ function speakBtnHtml(text,oi){
   const enKey4BM=words[oi]?.en||'';
   const imptCls=imptBM.has(enKey4BM)?'on-impt':'off';
   const imptLbl=imptBM.has(enKey4BM)?'重点中':'重点練習';
-  return '<div style="display:flex;gap:8px;justify-content:center;align-items:center">'
+  return '<div style="display:flex;gap:8px;justify-content:center;align-items:center;flex-wrap:wrap">'
     +'<button class="bm-btn '+imptCls+'" style="padding:9px 18px" onclick="event.stopPropagation();toggleBM(\'impt\','+oi+')">⭐ '+imptLbl+'</button>'
     +slideBtn
     +'<button class="speak-btn" data-text="'+esc+'" onclick="event.stopPropagation();if(window._slideRunning)stopSlide();speak(&quot;'+escSQ+'&quot;)">'
     +'<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg> 読み上げる</button>'
+    +'<button class="ask-btn" data-en="'+escA+'" onclick="event.stopPropagation();copyEnglish(this)">💬 コピーしてChatGPTへ</button>'
     +'</div>';
 }
 function autoSpeak(){
@@ -1296,12 +1388,7 @@ function parseCSVLine(line){
 }
 
 function parseCSV(text,key,fname){
-  words=text.split(/\r?\n/).filter(l=>l.trim()).map(l=>{
-    const p=parseCSVLine(l);
-    const {en,ph}=parseEnPh(p[1]);
-    const note=(p[2]||'').trim().replace(/\\n/g,'\n');
-    return {jp:(p[0]||'').trim(), en, ph, note};
-  }).filter(w=>w.jp&&w.en);
+  words=rowsToWords(text.split(/\r?\n/).filter(l=>l.trim()).map(parseCSVLine), true);
   _dataKey=key;
   document.getElementById('file-name-display').textContent='📄 '+fname;
   const restored=restoreProgress(key);
@@ -1315,6 +1402,38 @@ function parseEnPh(raw){
   const m=s.match(/^(.*?)\s*(\/[^/]+\/)\s*$/);
   if(m) return {en:m[1].trim(), ph:m[2].trim()};
   return {en:s, ph:''};
+}
+
+// ── 行配列 → 単語配列（2形式に対応） ─────────────────────
+//  新形式: A=日本語 / B=英語 / C=発音記号 / D=補足
+//  旧形式: A=日本語 / B=英語(+/発音記号/) / C=補足
+function _looksPh(s){
+  s=String(s||'').trim();
+  if(!s) return false;
+  return /^\/.+\/$/.test(s) || /^\[.+\]$/.test(s) || /[ˈˌəɪʊɛɔæʌɑθðʃʒŋː]/.test(s);
+}
+function _normPh(s){
+  s=String(s||'').trim();
+  if(!s) return '';
+  return (s[0]==='/'||s[0]==='[') ? s : '/'+s+'/';
+}
+function rowsToWords(rows, unescapeNl){
+  let cCount=0, cPh=0, hasD=false;
+  for(const r of rows){
+    if(!(r[0]&&r[1])) continue;
+    if(String(r[3]==null?'':r[3]).trim()) hasD=true;
+    const c=String(r[2]==null?'':r[2]).trim();
+    if(c){ cCount++; if(_looksPh(c)) cPh++; }
+  }
+  const newFmt = hasD || (cCount>0 && cPh/cCount>=0.5);
+  const fixNl = t=>{ t=String(t==null?'':t).trim(); return unescapeNl ? t.replace(/\\n/g,'\n') : t; };
+  return rows.filter(r=>r[0]&&r[1]).map(r=>{
+    const {en,ph}=parseEnPh(r[1]);
+    if(newFmt){
+      return {jp:String(r[0]).trim(), en, ph:_normPh(r[2])||ph, note:fixNl(r[3])};
+    }
+    return {jp:String(r[0]).trim(), en, ph, note:fixNl(r[2])};
+  });
 }
 
 // ── Data ────────────────────────────────────────────────
@@ -1408,6 +1527,10 @@ function openCloudList(){
     list=list.filter(function(x){ return x.key && x.key!=='demo'; });
     if(!list.length){ var m0=document.getElementById('wh-cloud-modal'); if(m0) m0.style.display='none'; showToast('☁️ クラウドに保存されたデータがありません'); return; }
     list.sort(function(a,b){ return fbTimeToMillis(b.updatedAt)-fbTimeToMillis(a.updatedAt); });
+    var offCount=list.filter(function(x){ return x.official; }).length;
+    if(window._cloudView!=='all' && window._cloudView!=='off') window._cloudView=offCount?'off':'all';
+    var view=(window._cloudView==='off' && offCount)?'off':'all';
+    var shown=(view==='off')?list.filter(function(x){ return x.official; }):list;
     var el=document.getElementById('wh-cloud-modal');
     if(!el){ el=document.createElement('div'); el.id='wh-cloud-modal'; document.body.appendChild(el); }
     el.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center';
@@ -1418,10 +1541,26 @@ function openCloudList(){
     h.textContent='☁️ クラウドから開く';
     h.style.cssText='font-size:16px;font-weight:700;margin-bottom:6px;color:var(--ink)';
     var sub=document.createElement('div');
-    sub.textContent='タップで開く ／ 🗑️でクラウドから削除（新しい順）';
+    sub.textContent='タップで開く ／ ☆で「正式」の印 ／ 🗑️でクラウドから削除（新しい順）';
     sub.style.cssText='font-size:12px;color:var(--muted);margin-bottom:14px';
     box.appendChild(h); box.appendChild(sub);
-    list.forEach(function(x){
+    var fr=document.createElement('div');
+    fr.style.cssText='display:flex;gap:6px;margin-bottom:12px';
+    [['off','⭐ 正式のみ（'+offCount+'）'],['all','すべて（'+list.length+'）']].forEach(function(v){
+      var fb=document.createElement('button');
+      fb.className='btn'; fb.textContent=v[1];
+      fb.style.cssText='flex:1'+(view===v[0]?';border-color:var(--accent2);font-weight:700':'');
+      fb.onclick=function(){ window._cloudView=v[0]; openCloudList(); };
+      fr.appendChild(fb);
+    });
+    box.appendChild(fr);
+    if(!offCount){
+      var hint=document.createElement('div');
+      hint.textContent='☆を押して正式な問題集に印を付けると、次回から「⭐ 正式のみ」で絞り込めます';
+      hint.style.cssText='font-size:12px;color:var(--muted);margin-bottom:12px';
+      box.appendChild(hint);
+    }
+    shown.forEach(function(x){
       var ms=fbTimeToMillis(x.updatedAt), d=new Date(ms);
       var ts=ms?((d.getMonth()+1)+'/'+d.getDate()+' '+d.getHours()+':'+String(d.getMinutes()).padStart(2,'0')):'不明';
       var keyName=String(x.key).replace(/^file_/,''), cloudName=String(x.dispName||'').replace(/^📄\s*/,'');
@@ -1434,6 +1573,17 @@ function openCloudList(){
       var row=document.createElement('div');
       row.style.cssText='display:flex;gap:6px;align-items:stretch;margin-bottom:8px';
       row.appendChild(b);
+      var star=document.createElement('button');
+      star.className='btn'; star.textContent=x.official?'⭐':'☆'; star.style.cssText='flex:none';
+      star.title=x.official?'正式の印をはずす':'正式な問題集として印を付ける';
+      star.onclick=function(){
+        if(!window.fbSetOfficial){ showToast('❌ Firebase未接続'); return; }
+        window.fbSetOfficial(x.key,!x.official).then(function(ok){
+          if(!ok){ showToast('❌ 変更できませんでした'); return; }
+          openCloudList();
+        });
+      };
+      row.appendChild(star);
       var del=document.createElement('button');
       del.className='btn'; del.textContent='🗑️';
       del.title=(x.key===_dataKey)?'いま開いている問題集は削除できません':'クラウドから削除';
@@ -1566,16 +1716,7 @@ function appendFromExcel(input){
       let text=e.target.result;
       function parse(t){
         const lines=t.split(/\r?\n/).filter(l=>l.trim());
-        const newWords=[];
-        for(const line of lines){
-          const cols=line.split(',');
-          if(cols[0]&&cols[1]){
-            const {en,ph}=parseEnPh(cols[1]);
-            const note=String(cols[2]||'').trim();
-            newWords.push({jp:String(cols[0]).trim(), en, ph, note});
-          }
-        }
-        doAppend(newWords);
+        doAppend(rowsToWords(lines.map(l=>l.split(',')), false));
       }
       if((text.match(/\ufffd/g)||[]).length>5){
         const r2=new FileReader();
@@ -1590,12 +1731,7 @@ function appendFromExcel(input){
     reader.onload=e=>{
       const wb=XLSX.read(e.target.result,{type:'array'});
       const ws=wb.Sheets[wb.SheetNames[0]];
-      const newWords=XLSX.utils.sheet_to_json(ws,{header:1,defval:''})
-        .filter(r=>r[0]&&r[1]).map(r=>{
-          const {en,ph}=parseEnPh(r[1]);
-          const note=String(r[2]||'').trim();
-          return {jp:String(r[0]).trim(), en, ph, note};
-        });
+      const newWords=rowsToWords(XLSX.utils.sheet_to_json(ws,{header:1,defval:''}), false);
       doAppend(newWords);
     };
     reader.readAsArrayBuffer(f);
@@ -1656,12 +1792,7 @@ function loadFile(input){
     reader.onload=e=>{
       const wb=XLSX.read(e.target.result,{type:'array'});
       const ws=wb.Sheets[wb.SheetNames[0]];
-      words=XLSX.utils.sheet_to_json(ws,{header:1,defval:''})
-        .filter(r=>r[0]&&r[1]).map(r=>{
-          const {en,ph}=parseEnPh(r[1]);
-          const note=String(r[2]||'').trim();
-          return {jp:String(r[0]).trim(), en, ph, note};
-        });
+      words=rowsToWords(XLSX.utils.sheet_to_json(ws,{header:1,defval:''}), false);
       _dataKey=key;
       const restored=restoreProgress(key);
       if(!restored){idxFlash=0;idxType=0;idxSlide=0;idxByFilter={};knownFlash=new Set();knownType=new Set();knownSlide=new Set();pronBM=new Set();memBM=new Set();studyDates={};filter='all';}
@@ -2516,7 +2647,7 @@ function speakOnceAndStop(){
         window._slideOnAudioEnd=null;
         setTimeout(afterJpSpeak, 150);
       };
-      window.electronTTS.speak(jpText, jaRate, vol, 'ja-JP-NanamiNeural');
+      window.electronTTS.speak(jpText, jaRate, vol, jaVoiceId());
     } else {
       if(overlapping){
         repeatEnglish(OVERLAP_COUNT, finishOnce);
@@ -2529,24 +2660,52 @@ function speakOnceAndStop(){
   }
 
   // ブラウザ環境
-  function getJaVoice2(){
+  // 内蔵（ローカル）の日本語音声。オンライン音声が使えないときの代わり
+  function getJaLocal2(){
     const all=window.speechSynthesis.getVoices();
-    return all.find(v=>v.name.includes('Haruka'))||all.find(v=>v.name.includes('Nanami'))
-        ||all.find(v=>v.name.includes('Ichiro'))||all.find(v=>v.name.includes('Ayumi'))
-        ||all.find(v=>v.lang==='ja-JP')||all.find(v=>v.lang.startsWith('ja'))||null;
+    return all.find(v=>v.name.includes('Haruka'))||all.find(v=>v.name.includes('Ichiro'))
+        ||all.find(v=>v.name.includes('Ayumi'))
+        ||all.find(v=>v.lang==='ja-JP'&&!/Online/.test(v.name))
+        ||all.find(v=>v.lang.startsWith('ja')&&!/Online/.test(v.name))||null;
+  }
+  // Nanami（自然な声）を優先。直近10分以内に失敗していたら内蔵音声を先に使う
+  function getJaVoice2(){
+    const man=jaManualVoice(); if(man) return man;
+    const all=window.speechSynthesis.getVoices();
+    const bad=window._jaBadAt&&(Date.now()-window._jaBadAt<600000);
+    return (!bad&&all.find(v=>/Nanami|七海/.test(v.name)))||getJaLocal2()
+        ||all.find(v=>/Nanami|七海/.test(v.name))||null;
   }
   setTimeout(function(){
     const rate=parseFloat(document.getElementById('rate-sl')?.value||1);
-    function sayOnce(text, lang, voice, spRate, onDone){
+    function sayOnce(text, lang, voice, spRate, onDone, noFB){
       if(lang==='ja-JP') window.speechSynthesis.cancel();
       const utt=new SpeechSynthesisUtterance(text);
       utt.lang=lang; if(voice) utt.voice=voice; utt.rate=spRate; utt.volume=vol;
       let done=false;
       let t=null;
-      function finish(){ if(done)return; done=true; if(t){clearTimeout(t);t=null;} if(onDone)onDone(); }
+      let started=false, w=null;
+      function clearTimers(){ if(t){clearTimeout(t);t=null;} if(w){clearTimeout(w);w=null;} }
+      function finish(){ if(done)return; done=true; clearTimers(); if(onDone)onDone(); }
+      // オンライン音声(Nanami)が鳴らないときは、内蔵の日本語音声で読み直す
+      function toLocal(){
+        if(done||started||noFB||lang!=='ja-JP'||!voice||!/Online/.test(voice.name)) return false;
+        const lv=getJaLocal2(); if(!lv) return false;
+        done=true; clearTimers();
+        window._jaBadAt=Date.now();
+        window.speechSynthesis.cancel();
+        setTimeout(function(){ sayOnce(text,lang,lv,spRate,onDone,true); },60);
+        return true;
+      }
+      utt.onstart=function(){ started=true; if(w){clearTimeout(w);w=null;} };
       utt.onend=finish;
-      utt.onerror=function(e){ finish(); };
+      utt.onerror=function(e){
+        if(done) return;
+        if(e&&(e.error==='canceled'||e.error==='interrupted')){ finish(); return; }
+        if(!toLocal()) finish();
+      };
       t=setTimeout(finish, Math.max((text.length*500)/spRate, 5000));
+      if(lang==='ja-JP'&&!noFB) w=setTimeout(toLocal,3000);
       window.speechSynthesis.speak(utt);
     }
     if(speakMode==='ja_en'){
@@ -2660,7 +2819,7 @@ function _runSlide(){
           speak(w.en);
         },150);
       };
-      window.electronTTS.speak(jpText, jaRate, vol, 'ja-JP-NanamiNeural');
+      window.electronTTS.speak(jpText, jaRate, vol, jaVoiceId());
     } else {
       window._slideOnAudioEnd=afterSpeak;
       speak(w.en);
@@ -2669,7 +2828,7 @@ function _runSlide(){
   }
 
   // ブラウザ / Electron WebView 環境: Web Speech API
-  function sayIt(text, lang, voice, spRate, onDone, trackForShadowing){
+  function sayIt(text, lang, voice, spRate, onDone, trackForShadowing, noFB){
     const utt=new SpeechSynthesisUtterance(text);
     utt.lang=lang;
     if(voice) utt.voice=voice;
@@ -2696,21 +2855,54 @@ function _runSlide(){
       }
       if(onDone)onDone();
     }
+    // オンライン音声(Nanami)が鳴らないときは、内蔵の日本語音声で読み直す
+    let started=false, startTimer=null;
+    function toLocal(){
+      if(done||started||noFB||lang!=='ja-JP'||!voice||!/Online/.test(voice.name)) return false;
+      const lv=getJaLocal(); if(!lv) return false;
+      done=true;
+      if(fallbackTimer){clearTimeout(fallbackTimer);fallbackTimer=null;}
+      if(startTimer){clearTimeout(startTimer);startTimer=null;}
+      window._jaBadAt=Date.now();
+      window.speechSynthesis.cancel();
+      setTimeout(function(){
+        if(!window._slideRunning) return;
+        sayIt(text,lang,lv,spRate,onDone,trackForShadowing,true);
+      },60);
+      return true;
+    }
+    utt.onstart=function(){ started=true; if(startTimer){clearTimeout(startTimer);startTimer=null;} };
     utt.onend=finish;
-    utt.onerror=function(e){ console.warn('TTS',lang,e.error); finish(); };
+    utt.onerror=function(e){
+      console.warn('TTS',lang,e.error);
+      if(done) return;
+      if(e&&(e.error==='canceled'||e.error==='interrupted')){ finish(); return; }
+      if(!toLocal()) finish();
+    };
     // フォールバック：onendが来ない場合のみ発動（文字数×500ms、最低5秒）
     fallbackTimer=setTimeout(function(){ viaFallback=true; finish(); }, Math.max((text.length*500)/spRate, 5000));
+    if(lang==='ja-JP'&&!noFB) startTimer=setTimeout(toLocal,3000);
     window.speechSynthesis.speak(utt);
   }
 
-  function getJaVoice(){
+  // 内蔵（ローカル）の日本語音声。オンライン音声が使えないときの代わり
+  function getJaLocal(){
     const all=window.speechSynthesis.getVoices();
     return all.find(v=>v.name.includes('Haruka'))
-        || all.find(v=>v.name.includes('Nanami'))
         || all.find(v=>v.name.includes('Ichiro'))
         || all.find(v=>v.name.includes('Ayumi'))
-        || all.find(v=>v.lang==='ja-JP')
-        || all.find(v=>v.lang.startsWith('ja'))
+        || all.find(v=>v.lang==='ja-JP'&&!/Online/.test(v.name))
+        || all.find(v=>v.lang.startsWith('ja')&&!/Online/.test(v.name))
+        || null;
+  }
+  // Nanami（自然な声）を優先。直近10分以内に失敗していたら内蔵音声を先に使う
+  function getJaVoice(){
+    const man=jaManualVoice(); if(man) return man;
+    const all=window.speechSynthesis.getVoices();
+    const bad=window._jaBadAt&&(Date.now()-window._jaBadAt<600000);
+    return (!bad&&all.find(v=>/Nanami|七海/.test(v.name)))
+        || getJaLocal()
+        || all.find(v=>/Nanami|七海/.test(v.name))
         || null;
   }
 
@@ -3351,14 +3543,35 @@ if(window.electronTTS){
 </script>
 <script>
 // ── Xboxコントローラー対応（Gamepad API・標準マッピング）──────────
-// A=自動再生(スライドモードのみ・トグル) / B=次へ / X=前へ / Y=読み上げ
+// A=スライド:自動再生 / フラッシュ:学習済 ✓ / B=次へ / X=前へ / Y=読み上げ
+// LB=重点練習 / LT=発音練習 / RT=記憶 の登録・解除（フラッシュ・スライド共通）
+// RB=スライド:カード内の赤い「次へ/停止」ボタン(シャドーイング/オーバーラッピング再生の次へ) / フラッシュ:カードの表裏を切り替えるだけ
 (function(){
   const prev = {};            // gamepad index -> 前フレームのボタン状態
-  const BTN = {A:0, B:1, X:2, Y:3};
+  const BTN = {A:0, B:1, X:2, Y:3, LB:4, RB:5, LT:6, RT:7};
+  // 現在のカードを 重点練習/記憶/発音練習 に登録・解除（フラッシュ/スライド共通）
+  function registerBM(type,label,icon){
+    if(typeof mode==='undefined' || (mode!=='flash' && mode!=='slide')) return;
+    const filt=getFiltered();
+    const w=filt[Math.min(idx,filt.length-1)];
+    if(!w) return;
+    const set={pron:pronBM, mem:memBM, impt:imptBM}[type];
+    const already=set.has(w.en);
+    const wasFlipped=(mode==='flash' && flipped);
+    toggleBM(type,w.orig);   // 内部で再描画される
+    if(wasFlipped){          // 裏面のまま登録しても表に戻さない（読み上げもしない）
+      flipped=true;
+      const c=document.getElementById('fc'); if(c) c.classList.add('flipped');
+      const nb=document.getElementById('flash-note-box'); if(nb) nb.style.display='block';
+    }
+    if(typeof showToast==='function') showToast(already ? label+'から外しました' : icon+' '+label+'に登録しました');
+  }
   function onPress(name){
     if(typeof getFiltered==='function' && !getFiltered().length) return;
     if(name==='A'){
-      if(typeof mode!=='undefined' && mode==='slide') startSlide();
+      if(typeof mode==='undefined') return;
+      if(mode==='slide') startSlide();            // スライド: 自動再生トグル
+      else if(mode==='flash') markKnown(true);    // フラッシュ: 学習済 ✓（次のカードへ進む）
     }else if(name==='B'){
       navigate(1);
     }else if(name==='X'){
@@ -3366,6 +3579,20 @@ if(window.electronTTS){
     }else if(name==='Y'){
       if(window._slideRunning) stopSlide();
       speakCurrent();
+    }else if(name==='LB'){
+      registerBM('impt','重点練習','⭐');
+    }else if(name==='LT'){
+      registerBM('pron','発音練習','🎤');
+    }else if(name==='RT'){
+      registerBM('mem','記憶','💡');
+    }else if(name==='RB'){
+      if(typeof mode==='undefined') return;
+      if(mode==='slide'){
+        const b=document.getElementById('slide-inline-stop-btn');
+        if(b) b.click();   // 画面の赤ボタンと完全に同じ動作（再生中=停止 / 停止中=次へ移動して1回再生）
+      }else if(mode==='flash'){
+        flipCard();        // 表⇄裏を切り替えるだけ（次へ移る時は A=学習済 / B=次へ）
+      }
     }
   }
   function poll(){
