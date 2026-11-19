@@ -53,10 +53,9 @@ document.addEventListener('DOMContentLoaded', function(){
     window.fbSaveWords=function(k,w){if(!k)return Promise.resolve();return db.collection('words').doc(k).set({words:w,updatedAt:firebase.firestore.FieldValue.serverTimestamp()}).catch(function(err){console.error('fbSaveWords failed:',err);if(window.showToast)window.showToast('⚠️ クラウド保存に失敗しました（この端末には保存済み）');});};
     window.fbLoadWords=function(k){if(!k)return Promise.resolve(null);return db.collection('words').doc(k).get().then(function(s){return s.exists?s.data().words:null;}).catch(function(){return null;});};
     window.fbLoadWordsFull=function(k){if(!k)return Promise.resolve(null);return db.collection('words').doc(k).get().then(function(s){return s.exists?s.data():null;}).catch(function(){return null;});};
-    window.fbListProgress=function(){return db.collection('progress').get().then(function(s){var off={},list=[];s.docs.forEach(function(d){var x=d.data()||{};if(d.id==='__official__'){(x.keys||[]).forEach(function(k){off[k]=true;});return;}list.push({key:d.id,dispName:x.dispName||'',updatedAt:x.updatedAt});});list.forEach(function(e){e.official=!!off[e.key];});return list;}).catch(function(err){console.error('fbListProgress failed:',err);return null;});};
+    window.fbListProgress=function(){return db.collection('progress').get().then(function(s){return s.docs.map(function(d){var x=d.data()||{};return {key:d.id,dispName:x.dispName||'',updatedAt:x.updatedAt};});}).catch(function(err){console.error('fbListProgress failed:',err);return null;});};
     window.fbSaveDispName=function(k,n){if(!k||!n)return Promise.resolve();return db.collection('progress').doc(k).set({dispName:n},{merge:true}).catch(function(err){console.error('fbSaveDispName failed:',err);});};
-    window.fbSetOfficial=function(k,on){if(!k)return Promise.resolve(false);var FV=firebase.firestore.FieldValue;return db.collection('progress').doc('__official__').set({keys:on?FV.arrayUnion(k):FV.arrayRemove(k)},{merge:true}).then(function(){return true;}).catch(function(err){console.error('fbSetOfficial failed:',err);return false;});};
-    window.fbDeleteSet=function(k){if(!k)return Promise.resolve(false);return Promise.all([db.collection('progress').doc(k).delete(),db.collection('words').doc(k).delete(),db.collection('progress').doc('__official__').set({keys:firebase.firestore.FieldValue.arrayRemove(k)},{merge:true}).catch(function(){})]).then(function(){return true;}).catch(function(err){console.error('fbDeleteSet failed:',err);return false;});};
+    window.fbDeleteSet=function(k){if(!k)return Promise.resolve(false);return Promise.all([db.collection('progress').doc(k).delete(),db.collection('words').doc(k).delete()]).then(function(){return true;}).catch(function(err){console.error('fbDeleteSet failed:',err);return false;});};
     window.fbReady=true;
     console.log('Firebase初期化完了');
   }catch(ex){
@@ -636,6 +635,8 @@ function debugSync(){
 }
 
 function applyFbData(key, fbData, fbWords, fbWordsUpdatedAt){
+  // 非同期の同期結果が届く間に別の問題集へ切り替わっていたら、古い結果では上書きしない
+  if(_dataKey && _dataKey!=='demo' && _dataKey!==key) return false;
   autoBackupSnapshot(key, '同期前');
   if(fbData&&fbData.updatedAt) fbData.updatedAt=fbTimeToMillis(fbData.updatedAt);
   fbWordsUpdatedAt=fbTimeToMillis(fbWordsUpdatedAt);
@@ -960,6 +961,7 @@ function tryAutoRestore(){
       autoBackupSnapshot(lastKey, '起動時');
       window.fbLoadProgress(lastKey).then(fbData=>{
         if(!fbData||!fbData.updatedAt)return;
+        if(_dataKey!==lastKey)return; // 途中で別の問題集を開いていたら適用しない
         fbData.updatedAt=fbTimeToMillis(fbData.updatedAt);
         // ローカルより新しい場合のみ適用（複数デバイス同期。古いFirebaseデータで上書きしない）
         const localRaw=localStorage.getItem('wh_prog_'+lastKey);
@@ -987,6 +989,7 @@ function tryAutoRestore(){
       // 単語データも確認（編集・追加を同期、updatedAtで新しい方を採用）
       window.fbLoadWordsFull(lastKey).then(fbDoc=>{
         if(!fbDoc||!fbDoc.words||!fbDoc.words.length)return;
+        if(_dataKey!==lastKey)return; // 途中で別の問題集を開いていたら適用しない
         const fbWords=fbDoc.words;
         const localUpdatedAt=Number(localStorage.getItem('wh_words_updatedAt_'+lastKey)||0);
         const fbUpdatedAt=fbTimeToMillis(fbDoc.updatedAt);
@@ -1489,7 +1492,16 @@ function deleteCloudSet(key,name){
   });
 }
 
-function openFromCloud(key,quiet){
+// 問題集の表示名を決める（一覧と同じ規則：ヒント > クラウド名 > 端末に残る名前 > キー）
+function resolveDispName(key,cloudName,hint){
+  var strip=function(t){ return String(t||'').replace(/^📄\s*/,''); };
+  var keyName=String(key).replace(/^file_/,'');
+  var n=strip(hint);
+  if(!n){ var c=strip(cloudName); n=(c&&c!==keyName)?c:(strip(localStorage.getItem('wh_dispName_'+key))||keyName); }
+  return '📄 '+n;
+}
+
+function openFromCloud(key,quiet,nameHint){
   if(!key||!window.fbLoadProgress||!window.fbLoadWordsFull) return Promise.resolve(false);
   return Promise.all([
     window.fbLoadProgress(key).catch(function(){return null;}),
@@ -1508,9 +1520,11 @@ function openFromCloud(key,quiet){
       localStorage.setItem('wh_prog_'+key, JSON.stringify(p));
     }
     localStorage.setItem('wh_lastKey', key);
-    var dn=(p&&p.dispName)||('📄 '+key.replace(/^file_/,''));
+    var dn=resolveDispName(key,p&&p.dispName,nameHint);
     localStorage.setItem('wh_dispName_'+key, dn);
     var disp=document.getElementById('file-name-display'); if(disp) disp.textContent=dn;
+    // 一覧でタップした名前とクラウド側の名前が食い違っていたら、クラウド側も直しておく
+    if(nameHint && window.fbSaveDispName && (!p || p.dispName!==dn)) window.fbSaveDispName(key,dn);
     var restored=p?restoreProgress(key):false;
     if(!restored){ idxFlash=0;idxType=0;idxSlide=0;idxByFilter={};knownFlash=new Set();knownType=new Set();knownSlide=new Set();pronBM=new Set();memBM=new Set();imptBM=new Set();shioriFlash='';shioriSlide='';studyCount={};studyDates={};filter='all'; }
     init(restored);
@@ -1527,10 +1541,6 @@ function openCloudList(){
     list=list.filter(function(x){ return x.key && x.key!=='demo'; });
     if(!list.length){ var m0=document.getElementById('wh-cloud-modal'); if(m0) m0.style.display='none'; showToast('☁️ クラウドに保存されたデータがありません'); return; }
     list.sort(function(a,b){ return fbTimeToMillis(b.updatedAt)-fbTimeToMillis(a.updatedAt); });
-    var offCount=list.filter(function(x){ return x.official; }).length;
-    if(window._cloudView!=='all' && window._cloudView!=='off') window._cloudView=offCount?'off':'all';
-    var view=(window._cloudView==='off' && offCount)?'off':'all';
-    var shown=(view==='off')?list.filter(function(x){ return x.official; }):list;
     var el=document.getElementById('wh-cloud-modal');
     if(!el){ el=document.createElement('div'); el.id='wh-cloud-modal'; document.body.appendChild(el); }
     el.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center';
@@ -1541,26 +1551,10 @@ function openCloudList(){
     h.textContent='☁️ クラウドから開く';
     h.style.cssText='font-size:16px;font-weight:700;margin-bottom:6px;color:var(--ink)';
     var sub=document.createElement('div');
-    sub.textContent='タップで開く ／ ☆で「正式」の印 ／ 🗑️でクラウドから削除（新しい順）';
+    sub.textContent='タップで開く ／ 🗑️でクラウドから削除（新しい順）';
     sub.style.cssText='font-size:12px;color:var(--muted);margin-bottom:14px';
     box.appendChild(h); box.appendChild(sub);
-    var fr=document.createElement('div');
-    fr.style.cssText='display:flex;gap:6px;margin-bottom:12px';
-    [['off','⭐ 正式のみ（'+offCount+'）'],['all','すべて（'+list.length+'）']].forEach(function(v){
-      var fb=document.createElement('button');
-      fb.className='btn'; fb.textContent=v[1];
-      fb.style.cssText='flex:1'+(view===v[0]?';border-color:var(--accent2);font-weight:700':'');
-      fb.onclick=function(){ window._cloudView=v[0]; openCloudList(); };
-      fr.appendChild(fb);
-    });
-    box.appendChild(fr);
-    if(!offCount){
-      var hint=document.createElement('div');
-      hint.textContent='☆を押して正式な問題集に印を付けると、次回から「⭐ 正式のみ」で絞り込めます';
-      hint.style.cssText='font-size:12px;color:var(--muted);margin-bottom:12px';
-      box.appendChild(hint);
-    }
-    shown.forEach(function(x){
+    list.forEach(function(x){
       var ms=fbTimeToMillis(x.updatedAt), d=new Date(ms);
       var ts=ms?((d.getMonth()+1)+'/'+d.getDate()+' '+d.getHours()+':'+String(d.getMinutes()).padStart(2,'0')):'不明';
       var keyName=String(x.key).replace(/^file_/,''), cloudName=String(x.dispName||'').replace(/^📄\s*/,'');
@@ -1569,21 +1563,10 @@ function openCloudList(){
       b.className='btn';
       b.style.cssText='display:block;flex:1;min-width:0;text-align:left;white-space:normal;word-break:break-all'+(x.key===_dataKey?';border-color:var(--accent2)':'');
       b.textContent='📄 '+name+'（最終更新 '+ts+'）'+(x.key===_dataKey?' ← いま開いている':'');
-      b.onclick=function(){ el.style.display='none'; openFromCloud(x.key); };
+      b.onclick=function(){ el.style.display='none'; openFromCloud(x.key,false,name); };
       var row=document.createElement('div');
       row.style.cssText='display:flex;gap:6px;align-items:stretch;margin-bottom:8px';
       row.appendChild(b);
-      var star=document.createElement('button');
-      star.className='btn'; star.textContent=x.official?'⭐':'☆'; star.style.cssText='flex:none';
-      star.title=x.official?'正式の印をはずす':'正式な問題集として印を付ける';
-      star.onclick=function(){
-        if(!window.fbSetOfficial){ showToast('❌ Firebase未接続'); return; }
-        window.fbSetOfficial(x.key,!x.official).then(function(ok){
-          if(!ok){ showToast('❌ 変更できませんでした'); return; }
-          openCloudList();
-        });
-      };
-      row.appendChild(star);
       var del=document.createElement('button');
       del.className='btn'; del.textContent='🗑️';
       del.title=(x.key===_dataKey)?'いま開いている問題集は削除できません':'クラウドから削除';
@@ -1762,6 +1745,7 @@ function loadFile(input){
       if(window.fbLoadProgress){
         window.fbLoadProgress(key).then(function(fbData){
           if(!fbData||!fbData.updatedAt)return;
+          if(_dataKey!==key)return; // 途中で別の問題集に切り替わっていたら適用しない
           fbData.updatedAt=fbTimeToMillis(fbData.updatedAt);
           const localRaw0=localStorage.getItem('wh_prog_'+key);
           const localAt0=localRaw0?(JSON.parse(localRaw0).updatedAt||0):0;
@@ -1801,6 +1785,7 @@ function loadFile(input){
       if(window.fbLoadProgress){
         window.fbLoadProgress(key).then(function(fbData){
           if(!fbData||!fbData.updatedAt)return;
+          if(_dataKey!==key)return; // 途中で別の問題集に切り替わっていたら適用しない
           fbData.updatedAt=fbTimeToMillis(fbData.updatedAt);
           const localRaw0=localStorage.getItem('wh_prog_'+key);
           const localAt0=localRaw0?(JSON.parse(localRaw0).updatedAt||0):0;
@@ -3458,6 +3443,7 @@ function renderList(){
       window.fbLoadWords(lastKey).catch(function(){return null;})
     ]).then(function(results){
       var fbData=results[0], fbWords=results[1];
+      if(_dataKey && _dataKey!=='demo' && _dataKey!==lastKey) return; // 待っている間に別の問題集を開いていた
       if(fbWords&&fbWords.length){
         words=fbWords;
         _dataKey=lastKey;
