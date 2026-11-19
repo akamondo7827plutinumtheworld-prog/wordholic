@@ -1395,7 +1395,7 @@ function parseCSV(text,key,fname){
   _dataKey=key;
   document.getElementById('file-name-display').textContent='📄 '+fname;
   const restored=restoreProgress(key);
-  if(!restored){idxFlash=0;idxType=0;idxSlide=0;idxByFilter={};knownFlash=new Set();knownType=new Set();knownSlide=new Set();pronBM=new Set();memBM=new Set();studyDates={};filter='all';}
+  if(!restored){idxFlash=0;idxType=0;idxSlide=0;idxByFilter={};knownFlash=new Set();knownType=new Set();knownSlide=new Set();pronBM=new Set();memBM=new Set();imptBM=new Set();studyDates={};filter='all';}
   init(restored);
 }
 
@@ -1452,7 +1452,7 @@ function loadDemo(){
   _dataKey='demo';
   document.getElementById('file-name-display').textContent='📄 サンプルデータ';
   const restored=restoreProgress('demo');
-  if(!restored){idxFlash=0;idxType=0;idxSlide=0;idxByFilter={};knownFlash=new Set();knownType=new Set();knownSlide=new Set();pronBM=new Set();memBM=new Set();studyDates={};filter='all';}
+  if(!restored){idxFlash=0;idxType=0;idxSlide=0;idxByFilter={};knownFlash=new Set();knownType=new Set();knownSlide=new Set();pronBM=new Set();memBM=new Set();imptBM=new Set();studyDates={};filter='all';}
   init(restored);
 }
 
@@ -1658,7 +1658,7 @@ function loadFromHistory(key){
   const dispEl=document.getElementById('file-name-display');
   if(dispEl) dispEl.textContent=dispText;
   const restored=restoreProgress(key);
-  if(!restored){idxFlash=0;idxType=0;idxSlide=0;idxByFilter={};knownFlash=new Set();knownType=new Set();knownSlide=new Set();pronBM=new Set();memBM=new Set();studyDates={};filter='all';}
+  if(!restored){idxFlash=0;idxType=0;idxSlide=0;idxByFilter={};knownFlash=new Set();knownType=new Set();knownSlide=new Set();pronBM=new Set();memBM=new Set();imptBM=new Set();studyDates={};filter='all';}
   init(restored);
   showToast('📜 「'+dispText.replace(/^📄\s*/,'')+'」を読み込みました');
   // Firebaseに最新の進捗・単語があれば取得して反映（スマホ側の更新を取りこぼさないため）
@@ -1779,7 +1779,7 @@ function loadFile(input){
       words=rowsToWords(XLSX.utils.sheet_to_json(ws,{header:1,defval:''}), false);
       _dataKey=key;
       const restored=restoreProgress(key);
-      if(!restored){idxFlash=0;idxType=0;idxSlide=0;idxByFilter={};knownFlash=new Set();knownType=new Set();knownSlide=new Set();pronBM=new Set();memBM=new Set();studyDates={};filter='all';}
+      if(!restored){idxFlash=0;idxType=0;idxSlide=0;idxByFilter={};knownFlash=new Set();knownType=new Set();knownSlide=new Set();pronBM=new Set();memBM=new Set();imptBM=new Set();studyDates={};filter='all';}
       init(restored);
       // Firebaseから進捗を同期
       if(window.fbLoadProgress){
@@ -1934,22 +1934,23 @@ function applyFlashSettingsToDOM(fs){
 function updateStats(){
   const filt=getFiltered();
   document.getElementById('s-total').textContent=words.length;
-  document.getElementById('s-pron').textContent=pronBM.size;
-  document.getElementById('s-mem').textContent=memBM.size;
+  const inDeck=function(set){ return words.filter(function(w){return set.has(w.en);}).length; };
+  document.getElementById('s-pron').textContent=inDeck(pronBM);
+  document.getElementById('s-mem').textContent=inDeck(memBM);
   document.getElementById('s-known-flash').textContent=knownFlash.size;
   document.getElementById('s-known-type').textContent=knownType.size;
   document.getElementById('s-known-slide').textContent=knownSlide.size;
   document.getElementById('s-idx').textContent=filt.length?(Math.min(idx,filt.length-1)+1)+'/'+filt.length:'0/0';
   document.getElementById('prog').style.width=(filt.length?Math.round((Math.min(idx,filt.length-1)+1)/filt.length*100):0)+'%';
   document.getElementById('fc-all').textContent='('+words.length+')';
-  document.getElementById('fc-pron').textContent='('+pronBM.size+')';
-  document.getElementById('fc-mem').textContent='('+memBM.size+')';
-  const fcImpt=document.getElementById('fc-impt');if(fcImpt)fcImpt.textContent='('+imptBM.size+')';
+  document.getElementById('fc-pron').textContent='('+inDeck(pronBM)+')';
+  document.getElementById('fc-mem').textContent='('+inDeck(memBM)+')';
+  const fcImpt=document.getElementById('fc-impt');if(fcImpt)fcImpt.textContent='('+words.filter(w=>imptBM.has(w.en)).length+')';
   const todayKey=getStudyDate();
   const d2=new Date(); if(d2.getHours()<2) d2.setDate(d2.getDate()-1); d2.setDate(d2.getDate()-1);
   const yesterdayKey=d2.toISOString().slice(0,10);
-  const todayCount=words.filter((_,i)=>(studyDates[String(i)]||[]).includes(todayKey)).length;
-  const yestCount=words.filter((_,i)=>(studyDates[String(i)]||[]).includes(yesterdayKey)).length;
+  const todayCount=words.filter(w=>(studyDates[w.en]||[]).includes(todayKey)).length;
+  const yestCount=words.filter(w=>(studyDates[w.en]||[]).includes(yesterdayKey)).length;
   const fcToday=document.getElementById('fc-today'); if(fcToday) fcToday.textContent='('+todayCount+')';
   const fcYest=document.getElementById('fc-yesterday'); if(fcYest) fcYest.textContent='('+yestCount+')';
   updateShioriBtn();
@@ -3354,6 +3355,7 @@ function deleteCard(oi){
   knownSlide.delete(enKey);
   pronBM.delete(enKey);
   memBM.delete(enKey);
+  imptBM.delete(enKey);
   delete studyCount[enKey];
   delete studyDates[enKey];
   if(shioriFlash===enKey) shioriFlash='';
