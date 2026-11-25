@@ -950,6 +950,7 @@ function tryAutoRestore(){
     const disp=document.getElementById('file-name-display');
     if(disp&&dispName) disp.textContent=dispName;
     const localOk=restoreProgress(lastKey);
+    window._autoWordsLoaded=true; // 端末内の単語データは読み込めた（進捗が無くてもこのデータで起動する）
     // Firebaseからより新しいデータがあれば上書き（初期化待ち対応）
     function doFbSync(){
       if(!window.fbLoadProgress){
@@ -3458,6 +3459,7 @@ function renderList(){
     init(true);
     return;
   }
+  if(window._autoWordsLoaded){ init(false); return; } // 進捗だけ無い場合も、端末内の単語でそのまま起動（同期はdoFbSyncが行う）
   // localStorageにデータがない場合、Firebaseが初期化されるのを待ってから復元を試みる
   function tryFirebaseRestore(){
     const lastKey=localStorage.getItem('wh_lastKey');
@@ -3503,6 +3505,7 @@ function renderList(){
           knownSlide=new Set(fbData.knownSlide||[]);
           pronBM=new Set(fbData.pronBM||[]);
           memBM=new Set(fbData.memBM||[]);
+          imptBM=new Set(fbData.imptBM||[]);
           loadShiori(fbData);
           studyCount=fbData.studyCount||{};
           studyDates=fbData.studyDates||{};
