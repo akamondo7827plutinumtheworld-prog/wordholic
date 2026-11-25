@@ -2176,7 +2176,10 @@ function renderFlash(){
       <button style="padding:8px 12px;border-radius:8px;border:1.5px solid var(--accent);background:var(--card);color:var(--accent);font-size:14px;cursor:pointer" onclick="deleteCard(${oi})" title="このカードを削除">🗑️</button>
     </div>
   `;
-  autoSpeak();
+  if(window._speakFrontOnce){
+    window._speakFrontOnce=false;
+    if(flashRev) speakCurrent(); else autoSpeak();
+  } else autoSpeak();
 }
 
 function updateFlashDirBtn(){
@@ -2321,6 +2324,7 @@ function markKnown(v){
     if(!studyDates[enKey].includes(getStudyDate())) studyDates[enKey].push(getStudyDate());
   } else getKnown().delete(enKey);
   updateStats();
+  if(v && mode==='flash' && flashRev) window._speakFrontOnce=true; // 英語が表面：次のカードが出た時に自動で読み上げる
   if(idx<filt.length-1)navigate(1);else renderFlash();
   saveProgress();
 }
