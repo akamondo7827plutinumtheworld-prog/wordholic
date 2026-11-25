@@ -341,6 +341,7 @@ select{padding:5px 10px;border:1px solid var(--border);border-radius:6px;backgro
     <div id="mode-flash"></div>
     <!-- フラッシュ再生範囲指定 -->
     <div id="flash-range-bar" style="margin-top:10px;background:var(--cream);border:1px solid var(--border);border-radius:10px;padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <button class="btn" id="flash-dir-btn" onclick="toggleFlashDir()" title="カードの表と裏を入れ替える" style="padding:6px 14px;border-radius:20px;font-size:13px">🔄 表：日本語 → 裏：English</button>
       <span style="font-size:13px;font-weight:600;color:var(--ink)">&#127919; 再生範囲：</span>
       <label style="font-size:13px;color:var(--muted)">カード番号</label>
       <input type="number" id="flash-range-from" min="1" value="1" style="width:70px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:'BIZ UDGothic',sans-serif;text-align:center;background:var(--paper);color:var(--ink)" oninput="validateFlashRange();saveProgress()">
@@ -589,6 +590,7 @@ Object.defineProperty(window,'idx',{get:()=>getIdx(),set:(v)=>setIdx(v)});
 let knownFlash=new Set(), knownType=new Set(), knownSlide=new Set();
 function getKnown(){ return mode==='flash'?knownFlash:mode==='type'?knownType:knownSlide; }
 // モード別known - getKnown()で取得
+let flashRev=false; // フラッシュの向き: false=表日本語/裏English, true=表English/裏日本語
 let mode='flash', filter='all', flipped=false, slideTimer=null, slideSpeed=2;
 let voices=[], selectedVoice=null;
 let _dataKey=''; // ファイル識別キー
@@ -849,7 +851,8 @@ function saveProgress(){
   const flashSettings={
     rangeFrom: document.getElementById('flash-range-from')?.value||'1',
     rangeTo: document.getElementById('flash-range-to')?.value||'',
-    loop: document.getElementById('flash-loop')?.checked||false
+    loop: document.getElementById('flash-loop')?.checked||false,
+    rev: flashRev
   };
   const progressData = {
     idx:getIdx(), idxFlash, idxType, idxSlide, idxByFilter, filter, mode,
@@ -1928,7 +1931,11 @@ function applyFlashSettingsToDOM(fs){
   if(fromEl) fromEl.value=fs.rangeFrom||'1';
   if(toEl) toEl.value=fs.rangeTo||'';
   if(loopEl) loopEl.checked=fs.loop||false;
+  const prevRev=flashRev;
+  flashRev=!!fs.rev;
+  updateFlashDirBtn();
   validateFlashRange();
+  if(prevRev!==flashRev && mode==='flash' && typeof renderFlash==='function' && !flipped) renderFlash();
 }
 
 function updateStats(){
@@ -2124,7 +2131,22 @@ function renderFlash(){
     ${bmRowHtml(oi)}
     <div class="card-wrap" style="margin-bottom:10px" onclick="flipCard()">
         <div class="card" id="fc">
-          <div class="card-face">
+          ${flashRev?`<div class="card-face">
+            ${bmDotsHtml(oi)}
+            <div class="card-label">English</div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:0">
+              <div class="card-word" style="font-family:'BIZ UDGothic',sans-serif">${w.en.replace(/\n/g,'<br>')}</div>
+              <div class="card-phonetic">${w.ph||''}</div>
+            </div>
+            <div class="card-hint">タップしてめくる</div>
+            <div style="display:flex;justify-content:center;margin-top:10px" onclick="event.stopPropagation()">${speakBtnHtml(w.en)}</div>
+          </div>
+          <div class="card-face card-back">
+            ${bmDotsHtml(oi)}
+            <div class="card-label">日本語</div>
+            <div class="card-word">${w.jp.replace(/\n/g,'<br>')}</div>
+            <div style="display:flex;justify-content:center;margin-top:10px" onclick="event.stopPropagation()">${speakBtnHtml(w.en)}</div>
+          </div>`:`<div class="card-face">
             ${bmDotsHtml(oi)}
             <div class="card-label">日本語</div>
             <div class="card-word">${w.jp.replace(/\n/g,'<br>')}</div>
@@ -2139,7 +2161,7 @@ function renderFlash(){
               <div class="card-phonetic">${w.ph||''}</div>
             </div>
             <div style="display:flex;justify-content:center;margin-top:10px" onclick="event.stopPropagation()">${speakBtnHtml(w.en)}</div>
-          </div>
+          </div>`}
         </div>
       </div>
     <div style="display:flex;gap:6px;margin-bottom:10px">
@@ -2155,6 +2177,17 @@ function renderFlash(){
     </div>
   `;
   autoSpeak();
+}
+
+function updateFlashDirBtn(){
+  const b=document.getElementById('flash-dir-btn');
+  if(b) b.textContent=flashRev?'🔄 表：English → 裏：日本語':'🔄 表：日本語 → 裏：English';
+}
+function toggleFlashDir(){
+  flashRev=!flashRev;
+  updateFlashDirBtn();
+  if(mode==='flash') renderFlash();
+  saveProgress();
 }
 
 function flashCardClick(){
@@ -2176,8 +2209,10 @@ function flipCard(){
     if(!w)return;
     const isMobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     // PC（Electronまたはデスクトップブラウザ）のみ自動読み上げ
-    if(window.electronTTS){ speak(w.en); }
-    else if(!isMobile){ speak(w.en); }
+    if(!flashRev){
+      if(window.electronTTS){ speak(w.en); }
+      else if(!isMobile){ speak(w.en); }
+    }
   }
   saveProgress();
 }
